@@ -278,13 +278,18 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
 
         const nextPartidas = prev.partidas.map((p) => (p.id === partidaId ? res.partida : p));
         const afterLifecycle = applyPostMatchUpdates(prev, [res]);
-        return recomputeCompetitionDerived(
+        const nextState = recomputeCompetitionDerived(
           afterLifecycle,
           target.competicao_id,
           target.temporada_id,
           nextPartidas,
           afterLifecycle.times,
         );
+        const finishedCount = nextPartidas.filter((p) => p.finalizada).length;
+        if (finishedCount > 0 && finishedCount % 8 === 0) {
+          return runTransferWindow(nextState, Math.random, 3).dataset;
+        }
+        return nextState;
       });
     },
     [recomputeCompetitionDerived],
@@ -333,10 +338,8 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
         );
         const comp = prev.competicoes.find((c) => c.id === competicaoId);
         const maxRound = Math.max(...compMatches.map((m) => m.rodada), 0);
-        if (comp?.tipo === 'liga' && maxRound >= 10 && rodada === Math.ceil(maxRound / 2)) {
-          return runTransferWindow(nextState, Math.random, 20).dataset;
-        }
-        return nextState;
+        const isMidSeason = comp?.tipo === 'liga' && maxRound >= 10 && rodada === Math.ceil(maxRound / 2);
+        return runTransferWindow(nextState, Math.random, isMidSeason ? 20 : 3).dataset;
       });
     },
     [recomputeCompetitionDerived],

@@ -75,7 +75,7 @@ export function TransferMarketTab({ onSelectPlayer }: TransferMarketTabProps) {
               Mercado de Transferências ({dataset.anoAtual})
             </h2>
             <p className="text-xs text-slate-400">
-              Os clubes negociam automaticamente no meio e na virada de temporada conforme o orçamento, ou você pode contratar e simular janelas extras abaixo.
+              Clubes do mundo todo negociam automaticamente a cada rodada/avanço de jogos conforme o orçamento, mesmo sem simular todas as ligas.
             </p>
           </div>
           <button
