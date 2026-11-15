@@ -39,6 +39,7 @@ interface SimulatorContextValue {
   simularPartida: (partidaId: string) => void;
   simularRodada: (competicaoId: string, temporadaId: string, rodada: number) => void;
   simularTemporada: (competicaoId: string, temporadaId: string) => void;
+  simularTodasPendentes: () => void;
   resetarTemporada: (competicaoId: string, temporadaId: string) => void;
   avancarTemporada: () => void;
   comprarJogador: (jogadorId: string, timeDestinoId: string) => { ok: boolean; error?: string };
@@ -345,64 +346,78 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
     [recomputeCompetitionDerived],
   );
 
-  const simularTemporada = useCallback(
-    (competicaoId: string, temporadaId: string) => {
-      setDataset((prev) => {
-        let current = prev;
-        // Loop até no máximo 50 iterações (cobre 38 rodadas + fases de mata-mata)
-        for (let step = 0; step < 50; step++) {
-          const pending = current.partidas
-            .filter((m) => m.competicao_id === competicaoId && m.temporada_id === temporadaId && !m.finalizada)
-            .sort((a, b) => a.rodada - b.rodada);
-          if (pending.length === 0) break;
+  const simulateCompetitionToEnd = useCallback(
+    (startDataset: SimulatorDataset, competicaoId: string, temporadaId: string): SimulatorDataset => {
+      let current = startDataset;
+      for (let step = 0; step < 50; step++) {
+        const pending = current.partidas
+          .filter((m) => m.competicao_id === competicaoId && m.temporada_id === temporadaId && !m.finalizada)
+          .sort((a, b) => a.rodada - b.rodada);
+        if (pending.length === 0) break;
 
-          const nextRound = pending[0]!.rodada;
-          const timesMap = new Map(current.times.map((t) => [t.id, { ...t }]));
-          const compMatches = current.partidas.filter(
-            (m) => m.competicao_id === competicaoId && m.temporada_id === temporadaId,
-          );
-          const roundIds = new Set(pending.filter((m) => m.rodada === nextRound).map((m) => m.id));
+        const nextRound = pending[0]!.rodada;
+        const timesMap = new Map(current.times.map((t) => [t.id, { ...t }]));
+        const compMatches = current.partidas.filter(
+          (m) => m.competicao_id === competicaoId && m.temporada_id === temporadaId,
+        );
+        const roundIds = new Set(pending.filter((m) => m.rodada === nextRound).map((m) => m.id));
 
-          const results: SimulateMatchResult[] = [];
-          const nextPartidas = current.partidas.map((m) => {
-            if (!roundIds.has(m.id)) return m;
-            const home = timesMap.get(m.time_casa_id);
-            const away = timesMap.get(m.time_fora_id);
-            if (!home || !away) return m;
-            const ko = getKnockoutMatchContext(m, compMatches);
-            const res = simulateMatch({
-              partida: m,
-              timeCasa: home,
-              timeFora: away,
-              jogadoresCasa: current.jogadores.filter((j) => j.time_id === home.id),
-              jogadoresFora: current.jogadores.filter((j) => j.time_id === away.id),
-              allowPenalties: ko.allowPenalties,
-              aggregateCasaBefore: ko.aggCasa,
-              aggregateForaBefore: ko.aggFora,
-            });
-            results.push(res);
-            return res.partida;
+        const results: SimulateMatchResult[] = [];
+        const nextPartidas = current.partidas.map((m) => {
+          if (!roundIds.has(m.id)) return m;
+          const home = timesMap.get(m.time_casa_id);
+          const away = timesMap.get(m.time_fora_id);
+          if (!home || !away) return m;
+          const ko = getKnockoutMatchContext(m, compMatches);
+          const res = simulateMatch({
+            partida: m,
+            timeCasa: home,
+            timeFora: away,
+            jogadoresCasa: current.jogadores.filter((j) => j.time_id === home.id),
+            jogadoresFora: current.jogadores.filter((j) => j.time_id === away.id),
+            allowPenalties: ko.allowPenalties,
+            aggregateCasaBefore: ko.aggCasa,
+            aggregateForaBefore: ko.aggFora,
           });
+          results.push(res);
+          return res.partida;
+        });
 
-          const afterLifecycle = applyPostMatchUpdates(current, results);
-          current = recomputeCompetitionDerived(
-            afterLifecycle,
-            competicaoId,
-            temporadaId,
-            nextPartidas,
-            afterLifecycle.times,
-          );
-          const comp = current.competicoes.find((c) => c.id === competicaoId);
-          const maxRound = Math.max(...compMatches.map((m) => m.rodada), 0);
-          if (comp?.tipo === 'liga' && maxRound >= 10 && nextRound === Math.ceil(maxRound / 2)) {
-            current = runTransferWindow(current, Math.random, 20).dataset;
-          }
+        const afterLifecycle = applyPostMatchUpdates(current, results);
+        current = recomputeCompetitionDerived(
+          afterLifecycle,
+          competicaoId,
+          temporadaId,
+          nextPartidas,
+          afterLifecycle.times,
+        );
+        const comp = current.competicoes.find((c) => c.id === competicaoId);
+        const maxRound = Math.max(...compMatches.map((m) => m.rodada), 0);
+        if (comp?.tipo === 'liga' && maxRound >= 10 && nextRound === Math.ceil(maxRound / 2)) {
+          current = runTransferWindow(current, Math.random, 20).dataset;
         }
-        return current;
-      });
+      }
+      return current;
     },
     [recomputeCompetitionDerived],
   );
+
+  const simularTemporada = useCallback(
+    (competicaoId: string, temporadaId: string) => {
+      setDataset((prev) => simulateCompetitionToEnd(prev, competicaoId, temporadaId));
+    },
+    [simulateCompetitionToEnd],
+  );
+
+  const simularTodasPendentes = useCallback(() => {
+    setDataset((prev) => {
+      let current = prev;
+      for (const temp of current.temporadas) {
+        current = simulateCompetitionToEnd(current, temp.competicao_id, temp.id);
+      }
+      return current;
+    });
+  }, [simulateCompetitionToEnd]);
 
   const resetarTemporada = useCallback((competicaoId: string, temporadaId: string) => {
     const fresh = buildInitialSimulatorDataset();
@@ -525,6 +540,7 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
       simularPartida,
       simularRodada,
       simularTemporada,
+      simularTodasPendentes,
       resetarTemporada,
       avancarTemporada,
       comprarJogador,
@@ -542,6 +558,7 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
       simularPartida,
       simularRodada,
       simularTemporada,
+      simularTodasPendentes,
       resetarTemporada,
       avancarTemporada,
       comprarJogador,

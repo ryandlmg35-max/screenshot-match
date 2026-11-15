@@ -59,6 +59,7 @@ export function SimulatorDashboard() {
     simularPartida,
     simularRodada,
     simularTemporada,
+    simularTodasPendentes,
     resetarTemporada,
     avancarTemporada,
   } = useSimulator();
@@ -89,6 +90,41 @@ export function SimulatorDashboard() {
     () => dataset.competicoes.filter((c) => c.pais_id === selectedCountryId),
     [dataset.competicoes, selectedCountryId],
   );
+
+  const compStatusMap = useMemo(() => {
+    const map = new Map<string, 'done' | 'in_progress' | 'pending'>();
+    for (const comp of dataset.competicoes) {
+      const matches = dataset.partidas.filter((m) => m.competicao_id === comp.id);
+      if (matches.length === 0) {
+        map.set(comp.id, 'pending');
+        continue;
+      }
+      const done = matches.filter((m) => m.finalizada).length;
+      if (done === matches.length) map.set(comp.id, 'done');
+      else if (done > 0) map.set(comp.id, 'in_progress');
+      else map.set(comp.id, 'pending');
+    }
+    return map;
+  }, [dataset.competicoes, dataset.partidas]);
+
+  const countryStatusMap = useMemo(() => {
+    const map = new Map<string, 'done' | 'in_progress' | 'pending'>();
+    for (const pais of dataset.paises) {
+      const comps = dataset.competicoes.filter((c) => c.pais_id === pais.id);
+      const statuses = comps.map((c) => compStatusMap.get(c.id) ?? 'pending');
+      if (statuses.length > 0 && statuses.every((s) => s === 'done')) map.set(pais.id, 'done');
+      else if (statuses.some((s) => s === 'done' || s === 'in_progress')) map.set(pais.id, 'in_progress');
+      else map.set(pais.id, 'pending');
+    }
+    return map;
+  }, [dataset.paises, dataset.competicoes, compStatusMap]);
+
+  const completedCompsCount = useMemo(
+    () => Array.from(compStatusMap.values()).filter((s) => s === 'done').length,
+    [compStatusMap],
+  );
+  const totalCompsCount = dataset.competicoes.length;
+  const pendingCompsCount = totalCompsCount - completedCompsCount;
 
   const selectedComp = useMemo(
     () => dataset.competicoes.find((c) => c.id === selectedCompId) ?? dataset.competicoes[0]!,
@@ -243,41 +279,63 @@ export function SimulatorDashboard() {
         {/* Country & Competition Selector */}
         <section className="rounded-xl border bg-card p-4 shadow-xs">
           <div className="mb-3 flex flex-wrap gap-1.5">
-            {dataset.paises.map((pais) => (
-              <button
-                key={pais.id}
-                type="button"
-                onClick={() => handleSelectCountry(pais.id)}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  selectedCountryId === pais.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                {pais.nome}
-              </button>
-            ))}
+            {dataset.paises.map((pais) => {
+              const st = countryStatusMap.get(pais.id) ?? 'pending';
+              return (
+                <button
+                  key={pais.id}
+                  type="button"
+                  onClick={() => handleSelectCountry(pais.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    selectedCountryId === pais.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  <span>{pais.nome}</span>
+                  {st === 'done' && (
+                    <span className="text-[10px] text-emerald-400" title="Todas competições concluídas">
+                      ✓
+                    </span>
+                  )}
+                  {st === 'in_progress' && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="Em andamento" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
             <div className="flex flex-wrap gap-2">
-              {countryComps.map((comp) => (
-                <button
-                  key={comp.id}
-                  type="button"
-                  onClick={() => handleSelectComp(comp.id)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
-                    selectedComp.id === comp.id
-                      ? 'border-emerald-600 bg-emerald-600/10 font-bold text-emerald-700 dark:text-emerald-300'
-                      : 'bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground'
-                  }`}
-                >
-                  <span>{comp.nome}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">
-                    {comp.formato}
-                  </span>
-                </button>
-              ))}
+              {countryComps.map((comp) => {
+                const st = compStatusMap.get(comp.id) ?? 'pending';
+                return (
+                  <button
+                    key={comp.id}
+                    type="button"
+                    onClick={() => handleSelectComp(comp.id)}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                      selectedComp.id === comp.id
+                        ? 'border-emerald-600 bg-emerald-600/10 font-bold text-emerald-700 dark:text-emerald-300'
+                        : 'bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground'
+                    }`}
+                  >
+                    <span>{comp.nome}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">
+                      {comp.formato}
+                    </span>
+                    {st === 'done' && (
+                      <span className="text-[11px] font-bold text-emerald-500" title="Concluída">
+                        ✓
+                      </span>
+                    )}
+                    {st === 'in_progress' && (
+                      <span className="h-2 w-2 rounded-full bg-amber-500" title="Em andamento" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -290,6 +348,42 @@ export function SimulatorDashboard() {
                 {finishedCount}/{compMatches.length} jogos
               </span>
             </div>
+          </div>
+        </section>
+
+        {/* Season Flow Guide + One-Click World Sim */}
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 text-xs">
+          <div className="space-y-0.5">
+            <div className="font-semibold text-foreground">
+              Temporada {dataset.anoAtual}: {completedCompsCount}/{totalCompsCount} competições concluídas
+            </div>
+            <p className="text-muted-foreground">
+              Copas nacionais e internacionais (Copa do Brasil, Libertadores, Champions e Mundial) já estão criadas na temporada.
+              Simule na ordem que quiser e clique em <strong>Avançar p/ {dataset.anoAtual + 1}</strong> quando terminar o ano.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedCountryId !== 'intl' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleSelectCountry('intl')}
+                className="h-8 text-xs"
+              >
+                <Globe className="mr-1.5 h-3.5 w-3.5 text-emerald-500" />
+                Ir p/ Internacionais
+              </Button>
+            )}
+            {pendingCompsCount > 0 && (
+              <Button
+                size="sm"
+                onClick={simularTodasPendentes}
+                className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+              >
+                <FastForward className="mr-1.5 h-3.5 w-3.5" />
+                Simular Mundo Inteiro ({pendingCompsCount} restantes)
+              </Button>
+            )}
           </div>
         </section>
 
