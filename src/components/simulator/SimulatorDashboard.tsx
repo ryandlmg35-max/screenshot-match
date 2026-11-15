@@ -149,9 +149,12 @@ export function SimulatorDashboard() {
     [compMatches],
   );
 
-  const nextPendingRound = useMemo(() => {
+  const { nextPendingRound, nextPendingPhase } = useMemo(() => {
     const pending = compMatches.filter((m) => !m.finalizada).sort((a, b) => a.rodada - b.rodada);
-    return pending[0]?.rodada ?? null;
+    const first = pending[0];
+    if (!first) return { nextPendingRound: null, nextPendingPhase: null };
+    const phaseLabel = first.fase.startsWith('Grupo') ? 'Fase de Grupos' : first.fase;
+    return { nextPendingRound: first.rodada, nextPendingPhase: phaseLabel };
   }, [compMatches]);
 
   const effectiveRound = availableRounds.includes(selectedRound)
@@ -215,8 +218,22 @@ export function SimulatorDashboard() {
 
   const handleSimulateNextRound = () => {
     if (nextPendingRound === null) return;
+
+    const pendingGroupMatches = compMatches.filter((m) => !m.finalizada && m.fase.startsWith('Grupo'));
+    const finishesGroupStageNow =
+      selectedComp.formato === 'grupos' &&
+      pendingGroupMatches.length > 0 &&
+      pendingGroupMatches.every((m) => m.rodada === nextPendingRound);
+    const alreadyInKnockout =
+      selectedComp.formato === 'grupos' &&
+      compMatches.some((m) => m.rodada === nextPendingRound && !m.fase.startsWith('Grupo'));
+
     simularRodada(selectedComp.id, selectedTemp.id, nextPendingRound);
     setSelectedRound(nextPendingRound);
+
+    if ((finishesGroupStageNow || alreadyInKnockout) && activeTab === 'classificacao') {
+      setActiveTab('chaveamento');
+    }
   };
 
   const finishedCount = compMatches.filter((m) => m.finalizada).length;
@@ -394,7 +411,7 @@ export function SimulatorDashboard() {
               <div className="text-sm font-bold">{selectedComp.nome}</div>
               <div className="text-xs text-muted-foreground">
                 {nextPendingRound !== null
-                  ? `Próxima rodada pendente: Rodada ${nextPendingRound}`
+                  ? `Próxima rodada pendente: Rodada ${nextPendingRound}${nextPendingPhase ? ` • ${nextPendingPhase}` : ''}`
                   : leader
                     ? `Temporada concluída • Líder: ${leader.nome}`
                     : 'Temporada concluída'}
@@ -418,6 +435,9 @@ export function SimulatorDashboard() {
               variant="secondary"
               onClick={() => {
                 simularTemporada(selectedComp.id, selectedTemp.id);
+                if (selectedComp.formato !== 'pontos-corridos') {
+                  setActiveTab('chaveamento');
+                }
                 setShowCelebration(true);
               }}
               disabled={nextPendingRound === null}
