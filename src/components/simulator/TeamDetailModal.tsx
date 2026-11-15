@@ -7,7 +7,7 @@ import { OverallBadge } from './MatchDetailModal';
 
 interface TeamDetailModalProps {
   team: Time;
-  tecnico?: Tecnico;
+  tecnico?: Tecnico | undefined;
   jogadores: Jogador[];
   onClose: () => void;
 }
