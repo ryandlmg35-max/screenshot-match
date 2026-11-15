@@ -1,5 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { calculateMarketValueAndSalary, generateDetailedAttributes } from '@/data/club-metadata';
 import { buildInitialSimulatorDataset, type SimulatorDataset } from '@/data/seed-builder';
+import {
+  advanceSeasonAndPromotions,
+  applyPostMatchUpdates,
+  executeManualTransfer,
+  runTransferWindow,
+} from '@/lib/season-lifecycle';
 import {
   generateKnockoutPhaseMatches,
   getPhaseNameForTeamCount,
@@ -7,11 +14,23 @@ import {
   recalculateTopScorers,
   resolveKnockoutWinners,
   simulateMatch,
+  type SimulateMatchResult,
 } from '@/lib/simulation-engine';
 import { supabase } from '@/lib/supabase';
-import type { Competicao, Jogador, Partida, Tecnico, Time } from '@/types/simulator';
+import type { Competicao, Jogador, Partida, PernaDominante, Posicao, Tecnico, Time } from '@/types/simulator';
 
 export type DataSourceMode = 'memory' | 'supabase';
+
+export interface NewPlayerInput {
+  time_id: string;
+  nome: string;
+  posicao: Posicao;
+  numero: number;
+  nacionalidade: string;
+  idade: number;
+  overall: number;
+  perna_dominante: PernaDominante;
+}
 
 interface SimulatorContextValue {
   dataset: SimulatorDataset;
@@ -21,7 +40,10 @@ interface SimulatorContextValue {
   simularRodada: (competicaoId: string, temporadaId: string, rodada: number) => void;
   simularTemporada: (competicaoId: string, temporadaId: string) => void;
   resetarTemporada: (competicaoId: string, temporadaId: string) => void;
-  adicionarJogador: (jogador: Omit<Jogador, 'id'>) => void;
+  avancarTemporada: () => void;
+  comprarJogador: (jogadorId: string, timeDestinoId: string) => { ok: boolean; error?: string };
+  simularJanela: () => number;
+  adicionarJogador: (jogador: NewPlayerInput) => void;
   atualizarJogador: (jogador: Jogador) => void;
   removerJogador: (jogadorId: string) => void;
   atualizarTime: (time: Partial<Time> & { id: string }) => void;
@@ -254,19 +276,14 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
           aggregateForaBefore: ko.aggFora,
         });
 
-        const nextTimes = prev.times.map((t) => {
-          if (t.id === home.id) return { ...t, elo_rating: res.eloCasaNovo };
-          if (t.id === away.id) return { ...t, elo_rating: res.eloForaNovo };
-          return t;
-        });
-
         const nextPartidas = prev.partidas.map((p) => (p.id === partidaId ? res.partida : p));
+        const afterLifecycle = applyPostMatchUpdates(prev, [res]);
         return recomputeCompetitionDerived(
-          prev,
+          afterLifecycle,
           target.competicao_id,
           target.temporada_id,
           nextPartidas,
-          nextTimes,
+          afterLifecycle.times,
         );
       });
     },
@@ -285,6 +302,7 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
         );
         if (roundIds.size === 0) return prev;
 
+        const results: SimulateMatchResult[] = [];
         const nextPartidas = prev.partidas.map((m) => {
           if (!roundIds.has(m.id)) return m;
           const home = timesMap.get(m.time_casa_id);
@@ -301,17 +319,17 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
             aggregateCasaBefore: ko.aggCasa,
             aggregateForaBefore: ko.aggFora,
           });
-          home.elo_rating = res.eloCasaNovo;
-          away.elo_rating = res.eloForaNovo;
+          results.push(res);
           return res.partida;
         });
 
+        const afterLifecycle = applyPostMatchUpdates(prev, results);
         return recomputeCompetitionDerived(
-          prev,
+          afterLifecycle,
           competicaoId,
           temporadaId,
           nextPartidas,
-          Array.from(timesMap.values()),
+          afterLifecycle.times,
         );
       });
     },
@@ -336,6 +354,7 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
           );
           const roundIds = new Set(pending.filter((m) => m.rodada === nextRound).map((m) => m.id));
 
+          const results: SimulateMatchResult[] = [];
           const nextPartidas = current.partidas.map((m) => {
             if (!roundIds.has(m.id)) return m;
             const home = timesMap.get(m.time_casa_id);
@@ -352,17 +371,17 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
               aggregateCasaBefore: ko.aggCasa,
               aggregateForaBefore: ko.aggFora,
             });
-            home.elo_rating = res.eloCasaNovo;
-            away.elo_rating = res.eloForaNovo;
+            results.push(res);
             return res.partida;
           });
 
+          const afterLifecycle = applyPostMatchUpdates(current, results);
           current = recomputeCompetitionDerived(
-            current,
+            afterLifecycle,
             competicaoId,
             temporadaId,
             nextPartidas,
-            Array.from(timesMap.values()),
+            afterLifecycle.times,
           );
         }
         return current;
@@ -387,14 +406,70 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  const adicionarJogador = useCallback((jogador: Omit<Jogador, 'id'>) => {
-    setDataset((prev) => ({
-      ...prev,
-      jogadores: [
-        ...prev.jogadores,
-        { ...jogador, id: `${jogador.time_id}-custom-${Date.now()}` },
-      ],
-    }));
+  const avancarTemporada = useCallback(() => {
+    setDataset((prev) => advanceSeasonAndPromotions(prev));
+  }, []);
+
+  const comprarJogador = useCallback(
+    (jogadorId: string, timeDestinoId: string): { ok: boolean; error?: string } => {
+      let outcome: { ok: boolean; error?: string } = { ok: true };
+      setDataset((prev) => {
+        const res = executeManualTransfer(prev, jogadorId, timeDestinoId);
+        if (res.error) {
+          outcome = { ok: false, error: res.error };
+          return prev;
+        }
+        return res.dataset;
+      });
+      return outcome;
+    },
+    [],
+  );
+
+  const simularJanela = useCallback((): number => {
+    let count = 0;
+    setDataset((prev) => {
+      const res = runTransferWindow(prev);
+      count = res.transfers.length;
+      return res.dataset;
+    });
+    return count;
+  }, []);
+
+  const adicionarJogador = useCallback((jogador: NewPlayerInput) => {
+    const playerId = `${jogador.time_id}-custom-${Date.now()}`;
+    const attrs = generateDetailedAttributes(playerId, jogador.posicao, jogador.overall, jogador.idade);
+    setDataset((prev) => {
+      const teamElo = prev.times.find((t) => t.id === jogador.time_id)?.elo_rating ?? 1500;
+      const { valorMercado, salarioSemanal } = calculateMarketValueAndSalary(
+        jogador.overall,
+        jogador.idade,
+        teamElo,
+      );
+      return {
+        ...prev,
+        jogadores: [
+          ...prev.jogadores,
+          {
+            ...jogador,
+            id: playerId,
+            ...attrs,
+            forma_fisica: 92,
+            moral: 78,
+            amarelos_acumulados: 0,
+            vermelhos_temporada: 0,
+            suspenso_jogos: 0,
+            lesionado_jogos: 0,
+            lesao_descricao: null,
+            salario_semanal: salarioSemanal,
+            valor_mercado: valorMercado,
+            contrato_fim_ano: prev.anoAtual + 3,
+            historico_temporadas: [],
+            timeline_ocorrencias: [],
+          },
+        ],
+      };
+    });
   }, []);
 
   const atualizarJogador = useCallback((jogador: Jogador) => {
@@ -437,6 +512,9 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
       simularRodada,
       simularTemporada,
       resetarTemporada,
+      avancarTemporada,
+      comprarJogador,
+      simularJanela,
       adicionarJogador,
       atualizarJogador,
       removerJogador,
@@ -451,6 +529,9 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
       simularRodada,
       simularTemporada,
       resetarTemporada,
+      avancarTemporada,
+      comprarJogador,
+      simularJanela,
       adicionarJogador,
       atualizarJogador,
       removerJogador,

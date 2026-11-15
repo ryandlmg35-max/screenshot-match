@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { getRivalryName } from '@/data/club-metadata';
 import { buildInitialSimulatorDataset } from '@/data/seed-builder';
 import { calcularOverallEstimado } from '@/lib/overall-formula';
+import {
+  advanceSeasonAndPromotions,
+  applyPostMatchUpdates,
+  executeManualTransfer,
+  runTransferWindow,
+} from '@/lib/season-lifecycle';
 import {
   generateRoundRobinSchedule,
   poissonRandom,
@@ -107,6 +114,9 @@ describe('Simulation engine', () => {
         fase: 'Final',
         data: new Date().toISOString(),
         finalizada: false,
+        clima: 'Nublado',
+        gramado: 'Bom',
+        classico: false,
         sumula: null,
       },
       timeCasa: arsenal,
@@ -116,7 +126,7 @@ describe('Simulation engine', () => {
       allowPenalties: true,
       rng: () => {
         call++;
-        if (call <= 2) return 0.01;
+        if (call <= 8) return 0.01;
         return call % 2 === 0 ? 0.1 : 0.95;
       },
     });
@@ -147,6 +157,9 @@ describe('Simulation engine', () => {
           fase: 'Temporada Regular',
           data: '',
           finalizada: true,
+          clima: 'Ensolarado',
+          gramado: 'Excelente',
+          classico: false,
           sumula: {
             overall_casa: 80,
             overall_fora: 75,
@@ -159,6 +172,10 @@ describe('Simulation engine', () => {
               finalizacoes_fora: 8,
               finalizacoes_gol_casa: 5,
               finalizacoes_gol_fora: 3,
+              finalizacoes_fora_casa: 7,
+              finalizacoes_fora_fora: 5,
+              defesas_casa: 2,
+              defesas_fora: 3,
               xg_casa: 1.8,
               xg_fora: 0.9,
               escanteios_casa: 6,
@@ -175,6 +192,7 @@ describe('Simulation engine', () => {
                 jogador_nome: 'Jogador 1',
                 assistencia_id: 'p2',
                 assistencia_nome: 'Jogador 2',
+                narracao: '12\' GOOOL! Jogador 1 marca após passe de Jogador 2.',
               },
             ],
           },
@@ -205,6 +223,9 @@ describe('Simulation engine', () => {
           fase: 'Temporada Regular',
           data: '',
           finalizada: true,
+          clima: 'Ensolarado',
+          gramado: 'Excelente',
+          classico: false,
           sumula: {
             overall_casa: 80,
             overall_fora: 75,
@@ -217,6 +238,10 @@ describe('Simulation engine', () => {
               finalizacoes_fora: 8,
               finalizacoes_gol_casa: 5,
               finalizacoes_gol_fora: 3,
+              finalizacoes_fora_casa: 7,
+              finalizacoes_fora_fora: 5,
+              defesas_casa: 2,
+              defesas_fora: 3,
               xg_casa: 1.8,
               xg_fora: 0.9,
               escanteios_casa: 6,
@@ -233,6 +258,7 @@ describe('Simulation engine', () => {
                 jogador_nome: 'Jogador 1',
                 assistencia_id: 'p2',
                 assistencia_nome: 'Jogador 2',
+                narracao: '12\' GOOOL! Jogador 1 marca após passe de Jogador 2.',
               },
             ],
           },
@@ -244,5 +270,85 @@ describe('Simulation engine', () => {
 
     expect(scorers.find((s) => s.jogador_id === 'p1')?.gols).toBe(1);
     expect(scorers.find((s) => s.jogador_id === 'p2')?.assistencias).toBe(1);
+  });
+});
+
+describe('FM Depth Systems (Attributes, Lifecycle, Transfers, Promotions)', () => {
+  const dataset = buildInitialSimulatorDataset();
+
+  it('populates detailed attributes, club tactics, budgets, and rivalries', () => {
+    const fla = dataset.times.find((t) => t.id === 'bra-flamengo')!;
+    const vasco = dataset.times.find((t) => t.id === 'bra-vasco')!;
+    expect(fla.estilo_tatico).toBeDefined();
+    expect(fla.orcamento).toBeGreaterThan(0);
+    expect(getRivalryName(fla.id, vasco.id)).toBe('Clássico dos Milhões');
+
+    const player = dataset.jogadores.find((j) => j.time_id === fla.id)!;
+    expect(player.finalizacao).toBeGreaterThanOrEqual(35);
+    expect(player.valor_mercado).toBeGreaterThan(0);
+    expect(player.contrato_fim_ano).toBeGreaterThanOrEqual(2026);
+  });
+
+  it('applies post-match card suspensions and injury updates', () => {
+    const fla = dataset.times.find((t) => t.id === 'bra-flamengo')!;
+    const pal = dataset.times.find((t) => t.id === 'bra-palmeiras')!;
+    const jFla = dataset.jogadores.filter((j) => j.time_id === fla.id);
+    const targetPlayer = jFla[0]!;
+
+    // Simula jogador com 2 amarelos acumulados recebendo mais 1 amarelo
+    const preDataset = {
+      ...dataset,
+      jogadores: dataset.jogadores.map((j) =>
+        j.id === targetPlayer.id ? { ...j, amarelos_acumulados: 2 } : j,
+      ),
+    };
+
+    const partida = preDataset.partidas.find(
+      (p) => p.competicao_id === 'bra-serie-a' && p.rodada === 1,
+    )!;
+
+    const updated = applyPostMatchUpdates(preDataset, [
+      {
+        partida: {
+          ...partida,
+          time_casa_id: fla.id,
+          time_fora_id: pal.id,
+          gols_casa: 2,
+          gols_fora: 1,
+          finalizada: true,
+        },
+        eloCasaNovo: fla.elo_rating + 8,
+        eloForaNovo: pal.elo_rating - 8,
+        novasLesoes: [{ jogadorId: jFla[1]!.id, descricao: 'Entorse no tornozelo', jogosFora: 2 }],
+        cartoesAplicados: [{ jogadorId: targetPlayer.id, amarelos: 1, vermelhos: 0 }],
+      },
+    ]);
+
+    const afterSuspended = updated.jogadores.find((j) => j.id === targetPlayer.id)!;
+    const afterInjured = updated.jogadores.find((j) => j.id === jFla[1]!.id)!;
+    expect(afterSuspended.suspenso_jogos).toBe(1);
+    expect(afterSuspended.amarelos_acumulados).toBe(0);
+    expect(afterInjured.lesionado_jogos).toBe(2);
+  });
+
+  it('executes manual & AI transfers and advances season with promotion/relegation', () => {
+    const fla = dataset.times.find((t) => t.id === 'bra-flamengo')!;
+    const target = dataset.jogadores.find(
+      (j) => j.time_id !== fla.id && j.valor_mercado <= fla.orcamento,
+    )!;
+
+    const transferRes = executeManualTransfer(dataset, target.id, fla.id);
+    expect(transferRes.error).toBeUndefined();
+    expect(transferRes.transfer?.time_destino_id).toBe(fla.id);
+    expect(
+      transferRes.dataset.jogadores.find((j) => j.id === target.id)?.time_id,
+    ).toBe(fla.id);
+
+    const windowRes = runTransferWindow(transferRes.dataset, () => 0.3);
+    expect(windowRes.dataset.transferencias.length).toBeGreaterThanOrEqual(1);
+
+    const nextSeason = advanceSeasonAndPromotions(windowRes.dataset, () => 0.5);
+    expect(nextSeason.anoAtual).toBe(dataset.anoAtual + 1);
+    expect(nextSeason.partidas.some((p) => !p.finalizada)).toBe(true);
   });
 });

@@ -1,4 +1,10 @@
 import type { Tecnico, Time } from '@/types/simulator';
+import {
+  CLUB_TITLES_MAP,
+  inferClubBudget,
+  inferClubTactic,
+  inferHomeBonus,
+} from './club-metadata';
 
 export interface ClubSeed {
   id: string;
@@ -309,6 +315,12 @@ export function seedToTime(c: ClubSeed): Time {
     estadio: c.estadio,
     logo_url: c.logo_url,
     elo_rating: c.elo_rating,
+    estilo_tatico: inferClubTactic(c.id, c.elo_rating),
+    moral_elenco: 75,
+    home_bonus: inferHomeBonus(c.id, c.elo_rating),
+    orcamento: inferClubBudget(c.pais_id, c.elo_rating),
+    titulos_historicos: CLUB_TITLES_MAP[c.id] ?? [],
+    forma_recente: [],
   };
 }
 

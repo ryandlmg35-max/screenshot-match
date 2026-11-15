@@ -1,3 +1,8 @@
+import {
+  calculateMarketValueAndSalary,
+  generateDetailedAttributes,
+  getRivalryName,
+} from '@/data/club-metadata';
 import { calcularOverallEstimado, type ReputacaoNivel } from '@/lib/overall-formula';
 import {
   generateKnockoutPhaseMatches,
@@ -169,21 +174,43 @@ function ensureSquadDepth(club: ClubSeed, existing: Jogador[]): Jogador[] {
     while (usedNumbers.has(num)) num++;
     usedNumbers.add(num);
 
+    const id = `${club.id}-gen-${result.length + 1}`;
+    const overall = calcularOverallEstimado({
+      posicao: slot.pos,
+      reputacao: slot.rep,
+      idade,
+      clubeElo: club.elo_rating,
+    });
+    const attrs = generateDetailedAttributes(id, slot.pos, overall, idade);
+    const { valorMercado, salarioSemanal } = calculateMarketValueAndSalary(
+      overall,
+      idade,
+      club.elo_rating,
+    );
+
     result.push({
-      id: `${club.id}-gen-${result.length + 1}`,
+      id,
       time_id: club.id,
       nome: `${first} ${last}`,
       posicao: slot.pos,
       numero: num,
       nacionalidade: pool.nat,
       idade,
-      overall: calcularOverallEstimado({
-        posicao: slot.pos,
-        reputacao: slot.rep,
-        idade,
-        clubeElo: club.elo_rating,
-      }),
+      overall,
       perna_dominante: seed % 5 === 0 ? 'Esquerda' : 'Direita',
+      ...attrs,
+      forma_fisica: 90 + (seed % 10),
+      moral: 72 + (seed % 12),
+      amarelos_acumulados: 0,
+      vermelhos_temporada: 0,
+      suspenso_jogos: 0,
+      lesionado_jogos: 0,
+      lesao_descricao: null,
+      salario_semanal: salarioSemanal,
+      valor_mercado: valorMercado,
+      contrato_fim_ano: 2026 + (seed % 4),
+      historico_temporadas: [],
+      timeline_ocorrencias: [],
     });
   }
 
@@ -201,6 +228,8 @@ export interface SimulatorDataset {
   partidas: Partida[];
   classificacao: Classificacao[];
   artilharia: Artilharia[];
+  transferencias: import('@/types/simulator').Transferencia[];
+  anoAtual: number;
 }
 
 export function buildInitialSimulatorDataset(): SimulatorDataset {
@@ -251,8 +280,19 @@ export function buildInitialSimulatorDataset(): SimulatorDataset {
         ),
       );
     } else if (comp.formato === 'mata-mata') {
-      // Copa do Brasil: 32 times em mata-mata a partir da Segunda Fase
-      participants = participants.slice(0, 32);
+      // Copa do Brasil: 32 times com pote de cabeças de chave (16 mais fortes enfrentam 16 do pote 2)
+      const sortedByElo = [...participants].sort((a, b) => {
+        const eloA = times.find((t) => t.id === a)?.elo_rating ?? 1500;
+        const eloB = times.find((t) => t.id === b)?.elo_rating ?? 1500;
+        return eloB - eloA;
+      });
+      const pot1 = sortedByElo.slice(0, 16);
+      const pot2 = sortedByElo.slice(16, 32);
+      const paired: string[] = [];
+      for (let i = 0; i < Math.min(pot1.length, pot2.length); i++) {
+        paired.push(pot1[i]!, pot2[pot2.length - 1 - i]!);
+      }
+      participants = paired;
       for (const tid of participants) {
         timesCompeticao.push({
           time_id: tid,
@@ -265,14 +305,25 @@ export function buildInitialSimulatorDataset(): SimulatorDataset {
       const compMatches = generateKnockoutPhaseMatches(participants, comp.id, temp.id, faseInicial, 1, true);
       partidas.push(...compMatches);
     } else if (comp.formato === 'grupos') {
-      // Competições continentais/internacionais: grupos de 4 times (ou múltiplos de 4)
+      // Competições continentais/internacionais: distribuição por potes (cabeças de chave por Elo)
       const groupCount = Math.max(2, Math.floor(participants.length / 4));
-      const trimmed = participants.slice(0, groupCount * 4);
+      const sortedByElo = [...participants].sort((a, b) => {
+        const eloA = times.find((t) => t.id === a)?.elo_rating ?? 1500;
+        const eloB = times.find((t) => t.id === b)?.elo_rating ?? 1500;
+        return eloB - eloA;
+      });
+      const trimmed = sortedByElo.slice(0, groupCount * 4);
       const groupLetters = 'ABCDEFGH'.split('');
 
       for (let g = 0; g < groupCount; g++) {
         const groupName = `Grupo ${groupLetters[g]}`;
-        const groupTeams = trimmed.slice(g * 4, (g + 1) * 4);
+        // Pote 1, Pote 2, Pote 3, Pote 4 (snake seeding)
+        const groupTeams = [
+          trimmed[g]!,
+          trimmed[groupCount + ((groupCount - 1 - g) % groupCount)]!,
+          trimmed[groupCount * 2 + g]!,
+          trimmed[groupCount * 3 + ((groupCount - 1 - g) % groupCount)]!,
+        ];
         for (const tid of groupTeams) {
           timesCompeticao.push({
             time_id: tid,
@@ -290,6 +341,11 @@ export function buildInitialSimulatorDataset(): SimulatorDataset {
     }
   }
 
+  // Marca clássicos nas partidas geradas
+  for (const p of partidas) {
+    p.classico = Boolean(getRivalryName(p.time_casa_id, p.time_fora_id));
+  }
+
   return {
     paises: PAISES,
     competicoes: COMPETICOES,
@@ -301,5 +357,7 @@ export function buildInitialSimulatorDataset(): SimulatorDataset {
     partidas,
     classificacao,
     artilharia: [],
+    transferencias: [],
+    anoAtual: 2026,
   };
 }

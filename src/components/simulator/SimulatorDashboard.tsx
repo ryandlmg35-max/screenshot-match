@@ -1,7 +1,9 @@
 import { Link } from '@tanstack/react-router';
 import {
+  ArrowRightLeft,
   Award,
   Calendar,
+  CalendarCheck2,
   Database,
   FastForward,
   GitBranch,
@@ -16,16 +18,19 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
 import { useSimulator } from '@/lib/simulator-store';
-import type { Partida } from '@/types/simulator';
+import type { Jogador, Partida } from '@/types/simulator';
 import { AdminPanel } from './AdminPanel';
 import { ClubBadge } from './ClubBadge';
 import { KnockoutBracket } from './KnockoutBracket';
 import { MatchDetailModal } from './MatchDetailModal';
+import { PlayerDetailModal } from './PlayerDetailModal';
+import { SeasonHighlights } from './SeasonHighlights';
 import { StandingsTable } from './StandingsTable';
 import { TeamDetailModal } from './TeamDetailModal';
 import { TopScorersTable } from './TopScorersTable';
+import { TransferMarketTab } from './TransferMarketTab';
 
-type TabKey = 'classificacao' | 'jogos' | 'chaveamento' | 'artilharia' | 'clubes' | 'admin';
+type TabKey = 'classificacao' | 'jogos' | 'chaveamento' | 'artilharia' | 'clubes' | 'mercado' | 'admin';
 
 export function SimulatorDashboard() {
   const {
@@ -35,6 +40,7 @@ export function SimulatorDashboard() {
     simularRodada,
     simularTemporada,
     resetarTemporada,
+    avancarTemporada,
   } = useSimulator();
   const { user } = useAuth();
 
@@ -44,6 +50,7 @@ export function SimulatorDashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>('classificacao');
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Jogador | null>(null);
 
   const timesMap = useMemo(() => new Map(dataset.times.map((t) => [t.id, t])), [dataset.times]);
   const jogadoresMap = useMemo(
@@ -310,8 +317,34 @@ export function SimulatorDashboard() {
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
               Reiniciar
             </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                avancarTemporada();
+                setSelectedRound(1);
+              }}
+              title="Executa acesso/rebaixamento, vagas continentais, evolução/aposentadoria e janela de transferências"
+            >
+              <CalendarCheck2 className="mr-1.5 h-3.5 w-3.5 text-amber-500" />
+              Avançar p/ {dataset.anoAtual + 1}
+            </Button>
           </div>
         </section>
+
+        {/* Season Highlights */}
+        {activeTab !== 'mercado' && activeTab !== 'admin' && (
+          <SeasonHighlights
+            standings={compStandings}
+            partidas={compMatches}
+            artilharia={compScorers}
+            timesMap={timesMap}
+            jogadoresMap={jogadoresMap}
+            onSelectTeam={(id) => setSelectedTeamId(id)}
+            onSelectPlayer={(p) => setSelectedPlayer(p)}
+          />
+        )}
 
         {/* Navigation Tabs */}
         <div className="flex flex-wrap gap-1.5 border-b pb-2">
@@ -358,6 +391,14 @@ export function SimulatorDashboard() {
           >
             <Users className="mr-1.5 h-3.5 w-3.5" />
             Clubes & Elencos ({compTeams.length})
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === 'mercado' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('mercado')}
+          >
+            <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
+            Mercado
           </Button>
           <Button
             size="sm"
@@ -528,6 +569,10 @@ export function SimulatorDashboard() {
           </div>
         )}
 
+        {activeTab === 'mercado' && (
+          <TransferMarketTab onSelectPlayer={(p) => setSelectedPlayer(p)} />
+        )}
+
         {activeTab === 'admin' && <AdminPanel />}
       </main>
 
@@ -552,7 +597,21 @@ export function SimulatorDashboard() {
           team={selectedTeam}
           tecnico={tecnicosMap.get(selectedTeam.id)}
           jogadores={dataset.jogadores.filter((j) => j.time_id === selectedTeam.id)}
+          partidas={dataset.partidas}
+          timesMap={timesMap}
+          onSelectPlayer={(p) => setSelectedPlayer(p)}
           onClose={() => setSelectedTeamId(null)}
+        />
+      )}
+
+      {/* Player Detail Modal */}
+      {selectedPlayer && (
+        <PlayerDetailModal
+          player={selectedPlayer}
+          team={timesMap.get(selectedPlayer.time_id)}
+          artilharia={dataset.artilharia}
+          anoAtual={dataset.anoAtual}
+          onClose={() => setSelectedPlayer(null)}
         />
       )}
     </div>

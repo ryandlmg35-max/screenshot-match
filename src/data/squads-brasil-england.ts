@@ -1,3 +1,7 @@
+import {
+  calculateMarketValueAndSalary,
+  generateDetailedAttributes,
+} from '@/data/club-metadata';
 import { calcularOverallEstimado, type ReputacaoNivel } from '@/lib/overall-formula';
 import type { Jogador, PernaDominante, Posicao } from '@/types/simulator';
 
@@ -16,17 +20,37 @@ export function buildPlayersFromTuples(
   clubeElo: number,
   tuples: PlayerTuple[],
 ): Jogador[] {
-  return tuples.map(([nome, posicao, numero, nacionalidade, idade, reputacao, perna], idx) => ({
-    id: `${teamId}-p${idx + 1}`,
-    time_id: teamId,
-    nome,
-    posicao,
-    numero,
-    nacionalidade,
-    idade,
-    overall: calcularOverallEstimado({ posicao, reputacao, idade, clubeElo }),
-    perna_dominante: perna ?? 'Direita',
-  }));
+  return tuples.map(([nome, posicao, numero, nacionalidade, idade, reputacao, perna], idx) => {
+    const id = `${teamId}-p${idx + 1}`;
+    const overall = calcularOverallEstimado({ posicao, reputacao, idade, clubeElo });
+    const attrs = generateDetailedAttributes(id, posicao, overall, idade);
+    const { valorMercado, salarioSemanal } = calculateMarketValueAndSalary(overall, idade, clubeElo);
+    const contratoFimAno = 2026 + ((idx + idade) % 4);
+    return {
+      id,
+      time_id: teamId,
+      nome,
+      posicao,
+      numero,
+      nacionalidade,
+      idade,
+      overall,
+      perna_dominante: perna ?? 'Direita',
+      ...attrs,
+      forma_fisica: 90 + ((idx * 3) % 10),
+      moral: 74 + ((idx * 5) % 12),
+      amarelos_acumulados: 0,
+      vermelhos_temporada: 0,
+      suspenso_jogos: 0,
+      lesionado_jogos: 0,
+      lesao_descricao: null,
+      salario_semanal: salarioSemanal,
+      valor_mercado: valorMercado,
+      contrato_fim_ano: contratoFimAno,
+      historico_temporadas: [],
+      timeline_ocorrencias: [],
+    };
+  });
 }
 
 export const SQUADS_BRASIL_SERIE_A: Record<string, PlayerTuple[]> = {
