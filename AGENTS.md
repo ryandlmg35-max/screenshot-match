@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Application rules
+- Preserve native TanStack Start routing and the generated client; compatibility exports reuse the singleton to avoid competing sessions.
+- Keep canonical migrations in Drizzle and identical SQL exports in supabase/migrations for portable recreation; apply each change only once.
+- Public connection checks use a server function with the publishable key and RLS, never admin access, to avoid exposing profiles.
+- Maintain one root auth subscription and clear query cache before sign-out to avoid stale user data.

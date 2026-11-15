@@ -8,7 +8,10 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import type { User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import { AuthContext } from '@/lib/auth-context';
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -81,11 +84,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Base Web" },
+      { name: "description", content: "Base mínima com banco e autenticação." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Base Web" },
+      { property: "og:description", content: "Base mínima com banco e autenticação." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
@@ -106,7 +109,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <head>
         <HeadContent />
       </head>
@@ -120,11 +123,31 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+  const [auth, setAuth] = useState<{ user: User | null; loading: boolean }>({ user: null, loading: true });
+  useEffect(() => {
+    let active = true;
+    let revision = 0;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) return;
+      revision++;
+      setAuth({ user: session?.user ?? null, loading: false });
+      void router.invalidate();
+      if (event !== 'SIGNED_OUT') void queryClient.invalidateQueries();
+    });
+    const initialRevision = revision;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (active && revision === initialRevision) setAuth({ user: data.user, loading: false });
+    }).catch(() => {
+      if (active && revision === initialRevision) setAuth({ user: null, loading: false });
+    });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, [router, queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <AuthContext.Provider value={auth}><Outlet /></AuthContext.Provider>
     </QueryClientProvider>
   );
 }
