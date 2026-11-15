@@ -4,6 +4,7 @@ import {
   Award,
   Calendar,
   CalendarCheck2,
+  Crown,
   Database,
   FastForward,
   GitBranch,
@@ -11,6 +12,7 @@ import {
   RotateCcw,
   Settings,
   Shield,
+  Swords,
   Trophy,
   Users,
 } from 'lucide-react';
@@ -20,17 +22,21 @@ import { useAuth } from '@/lib/auth-context';
 import { useSimulator } from '@/lib/simulator-store';
 import type { Jogador, Partida } from '@/types/simulator';
 import { AdminPanel } from './AdminPanel';
+import { ChampionCelebrationModal } from './ChampionCelebrationModal';
 import { ClubBadge } from './ClubBadge';
+import { HeadToHeadModal } from './HeadToHeadModal';
 import { KnockoutBracket } from './KnockoutBracket';
 import { MatchDetailModal } from './MatchDetailModal';
 import { PlayerDetailModal } from './PlayerDetailModal';
+import { PowerRankingsTab } from './PowerRankingsTab';
+import { PressConferenceModal } from './PressConferenceModal';
 import { SeasonHighlights } from './SeasonHighlights';
 import { StandingsTable } from './StandingsTable';
 import { TeamDetailModal } from './TeamDetailModal';
 import { TopScorersTable } from './TopScorersTable';
 import { TransferMarketTab } from './TransferMarketTab';
 
-type TabKey = 'classificacao' | 'jogos' | 'chaveamento' | 'artilharia' | 'clubes' | 'mercado' | 'admin';
+type TabKey = 'classificacao' | 'jogos' | 'chaveamento' | 'artilharia' | 'clubes' | 'mercado' | 'rankings' | 'admin';
 
 export function SimulatorDashboard() {
   const {
@@ -51,6 +57,9 @@ export function SimulatorDashboard() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Jogador | null>(null);
+  const [showH2H, setShowH2H] = useState(false);
+  const [pressMatchId, setPressMatchId] = useState<string | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const timesMap = useMemo(() => new Map(dataset.times.map((t) => [t.id, t])), [dataset.times]);
   const jogadoresMap = useMemo(
@@ -299,11 +308,35 @@ export function SimulatorDashboard() {
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => simularTemporada(selectedComp.id, selectedTemp.id)}
+              onClick={() => {
+                simularTemporada(selectedComp.id, selectedTemp.id);
+                setShowCelebration(true);
+              }}
               disabled={nextPendingRound === null}
             >
               <FastForward className="mr-1.5 h-3.5 w-3.5" />
               Simular Temporada Inteira
+            </Button>
+
+            {nextPendingRound === null && finishedCount > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowCelebration(true)}
+                className="border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+              >
+                <Trophy className="mr-1.5 h-3.5 w-3.5" />
+                Ver Campeão
+              </Button>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowH2H(true)}
+            >
+              <Swords className="mr-1.5 h-3.5 w-3.5 text-emerald-500" />
+              Comparar (H2H)
             </Button>
 
             <Button
@@ -399,6 +432,14 @@ export function SimulatorDashboard() {
           >
             <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
             Mercado
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === 'rankings' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('rankings')}
+          >
+            <Crown className="mr-1.5 h-3.5 w-3.5 text-amber-500" />
+            Rankings & GOATs
           </Button>
           <Button
             size="sm"
@@ -573,6 +614,14 @@ export function SimulatorDashboard() {
           <TransferMarketTab onSelectPlayer={(p) => setSelectedPlayer(p)} />
         )}
 
+        {activeTab === 'rankings' && (
+          <PowerRankingsTab
+            compTeamIds={compTeams.map((t) => t.id)}
+            onSelectTeam={(id) => setSelectedTeamId(id)}
+            onSelectPlayer={(p) => setSelectedPlayer(p)}
+          />
+        )}
+
         {activeTab === 'admin' && <AdminPanel />}
       </main>
 
@@ -588,8 +637,83 @@ export function SimulatorDashboard() {
             setSelectedMatchId(null);
             setSelectedTeamId(id);
           }}
+          onOpenPressConference={() => {
+            const id = selectedMatch.id;
+            setSelectedMatchId(null);
+            setPressMatchId(id);
+          }}
         />
       )}
+
+      {/* Press Conference Modal */}
+      {pressMatchId && (() => {
+        const pm = dataset.partidas.find((p) => p.id === pressMatchId);
+        if (!pm) return null;
+        const h = timesMap.get(pm.time_casa_id);
+        const a = timesMap.get(pm.time_fora_id);
+        if (!h || !a) return null;
+        const cName = dataset.competicoes.find((c) => c.id === pm.competicao_id)?.nome ?? pm.competicao_id;
+        return (
+          <PressConferenceModal
+            match={pm}
+            homeTeam={h}
+            awayTeam={a}
+            homeCoach={tecnicosMap.get(h.id)}
+            awayCoach={tecnicosMap.get(a.id)}
+            compName={cName}
+            onClose={() => setPressMatchId(null)}
+          />
+        );
+      })()}
+
+      {/* Head-to-Head Modal */}
+      {showH2H && (
+        <HeadToHeadModal
+          times={dataset.times}
+          jogadores={dataset.jogadores}
+          partidas={dataset.partidas}
+          competicoes={dataset.competicoes}
+          onClose={() => setShowH2H(false)}
+        />
+      )}
+
+      {/* Champion Celebration Modal */}
+      {showCelebration && (() => {
+        // Determina campeão: vencedor da Final (se copa/grupos) ou 1º colocado (pontos corridos)
+        const finalMatch = compMatches.find((m) => m.fase === 'Final' && m.finalizada);
+        let champTeam = leader ?? undefined;
+        let runnerTeam: typeof champTeam = undefined;
+        if (finalMatch) {
+          const gc = finalMatch.gols_casa ?? 0;
+          const gf = finalMatch.gols_fora ?? 0;
+          const winId =
+            finalMatch.sumula?.vencedor_penaltis_id ??
+            (gc >= gf ? finalMatch.time_casa_id : finalMatch.time_fora_id);
+          const loseId =
+            winId === finalMatch.time_casa_id ? finalMatch.time_fora_id : finalMatch.time_casa_id;
+          champTeam = timesMap.get(winId);
+          runnerTeam = timesMap.get(loseId);
+        } else if (compStandings.length >= 2) {
+          const sorted = [...compStandings].sort(
+            (a, b) => b.pontos - a.pontos || b.vitorias - a.vitorias || b.saldo - a.saldo,
+          );
+          champTeam = timesMap.get(sorted[0]!.time_id);
+          runnerTeam = timesMap.get(sorted[1]!.time_id);
+        }
+        if (!champTeam) return null;
+        const topRow = [...compScorers].sort((a, b) => b.gols - a.gols)[0];
+        const topP = topRow ? jogadoresMap.get(topRow.jogador_id) : undefined;
+        return (
+          <ChampionCelebrationModal
+            competition={selectedComp}
+            seasonLabel={seasonLabel}
+            champion={champTeam}
+            runnerUp={runnerTeam}
+            topScorer={topP && topRow ? { player: topP, goals: topRow.gols } : undefined}
+            onClose={() => setShowCelebration(false)}
+          />
+        );
+      })()}
 
       {/* Team Detail Modal */}
       {selectedTeam && (

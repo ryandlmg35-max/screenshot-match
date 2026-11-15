@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Award, CloudRain, Flame, Pause, Play, Radio, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
+import { Award, CloudRain, Flame, Mic, Pause, Play, Radio, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ClubBadge } from './ClubBadge';
 import type { EventoPartida, Partida, Time } from '@/types/simulator';
@@ -11,6 +11,7 @@ interface MatchDetailModalProps {
   onClose: () => void;
   onSimulate: (matchId: string) => void;
   onSelectTeam: (teamId: string) => void;
+  onOpenPressConference?: () => void;
 }
 
 export function OverallBadge({ overall }: { overall: number }) {
@@ -88,6 +89,7 @@ export function MatchDetailModal({
   onClose,
   onSimulate,
   onSelectTeam,
+  onOpenPressConference,
 }: MatchDetailModalProps) {
   const sumula = match.sumula;
   const [liveMode, setLiveMode] = useState(false);
@@ -259,10 +261,18 @@ export function MatchDetailModal({
           {match.finalizada && sumula && (
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               {!liveMode ? (
-                <Button size="sm" variant="outline" onClick={startLiveReplay}>
-                  <Radio className="mr-1.5 h-3.5 w-3.5 text-rose-500" />
-                  Assistir Replay Minuto a Minuto
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" onClick={startLiveReplay}>
+                    <Radio className="mr-1.5 h-3.5 w-3.5 text-rose-500" />
+                    Assistir Replay Minuto a Minuto
+                  </Button>
+                  {onOpenPressConference && (
+                    <Button size="sm" variant="outline" onClick={onOpenPressConference}>
+                      <Mic className="mr-1.5 h-3.5 w-3.5 text-amber-500" />
+                      Coletiva de Imprensa
+                    </Button>
+                  )}
+                </>
               ) : (
                 <>
                   <Button size="sm" variant="outline" onClick={() => setIsPlaying((p) => !p)}>
