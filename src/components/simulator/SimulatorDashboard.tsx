@@ -75,6 +75,7 @@ export function SimulatorDashboard() {
   const [showH2H, setShowH2H] = useState(false);
   const [pressMatchId, setPressMatchId] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [seasonSummaryMsg, setSeasonSummaryMsg] = useState<string | null>(null);
 
   const timesMap = useMemo(() => new Map(dataset.times.map((t) => [t.id, t])), [dataset.times]);
   const jogadoresMap = useMemo(
@@ -369,6 +370,18 @@ export function SimulatorDashboard() {
         </section>
 
         {/* Season Flow Guide + One-Click World Sim */}
+        {seasonSummaryMsg && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs font-medium text-amber-900 dark:text-amber-200">
+            <span>{seasonSummaryMsg}</span>
+            <button
+              type="button"
+              onClick={() => setSeasonSummaryMsg(null)}
+              className="rounded px-2 py-0.5 text-[11px] hover:bg-amber-500/20"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 text-xs">
           <div className="space-y-0.5">
             <div className="font-semibold text-foreground">
@@ -483,8 +496,26 @@ export function SimulatorDashboard() {
               size="sm"
               variant="outline"
               onClick={() => {
+                const prevDiv1 = dataset.competicoes.find((c) => c.pais_id === selectedCountryId && c.divisao === 1);
+                const prevDiv2 = dataset.competicoes.find((c) => c.pais_id === selectedCountryId && c.divisao === 2);
+                let summary = `Temporada ${dataset.anoAtual + 1} iniciada!`;
+                if (prevDiv1 && prevDiv2) {
+                  const sortRows = (compId: string) =>
+                    dataset.classificacao
+                      .filter((r) => r.competicao_id === compId)
+                      .sort((a, b) => b.pontos - a.pontos || b.vitorias - a.vitorias || b.saldo - a.saldo || b.gols_pro - a.gols_pro);
+                  const s1 = sortRows(prevDiv1.id);
+                  const s2 = sortRows(prevDiv2.id);
+                  const spots = selectedCountryId === 'bra' ? 4 : 3;
+                  const relNames = s1.slice(-spots).map((r) => timesMap.get(r.time_id)?.sigla ?? r.time_id).join(', ');
+                  const promNames = s2.slice(0, spots).map((r) => timesMap.get(r.time_id)?.sigla ?? r.time_id).join(', ');
+                  if (relNames && promNames) {
+                    summary = `Temporada ${dataset.anoAtual + 1}: Rebaixados (${relNames}) ↓ • Promovidos (${promNames}) ↑`;
+                  }
+                }
                 avancarTemporada();
                 setSelectedRound(1);
+                setSeasonSummaryMsg(summary);
               }}
               title="Executa acesso/rebaixamento, vagas continentais, evolução/aposentadoria e janela de transferências"
             >

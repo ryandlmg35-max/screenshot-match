@@ -31,8 +31,7 @@ function getZoneConfig(comp: Competicao): {
   if (comp.pais_id && NON_EURO_WORLD_CUP_COUNTRIES.has(comp.pais_id)) {
     return { topCount: 3, midCount: 0, relegationCount: 0, topLabel: 'Mundial de Clubes (G3)', midLabel: '' };
   }
-  const rel = comp.pais_id === 'ger' || comp.pais_id === 'fra' || comp.pais_id === 'por' ? 2 : 3;
-  return { topCount: 4, midCount: 2, relegationCount: rel, topLabel: 'Champions League (G4)', midLabel: 'Europa League' };
+  return { topCount: 4, midCount: 2, relegationCount: 3, topLabel: 'Champions League (G4)', midLabel: 'Europa League' };
 }
 
 function getZoneClass(comp: Competicao, pos: number, total: number): string {
