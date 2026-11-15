@@ -21,6 +21,7 @@ import type {
 import { COMPETICOES, PAISES, TEMPORADAS } from './competitions';
 import { buildPlayersFromTuples, SQUADS_BRASIL_SERIE_A, SQUADS_ENGLAND_PL } from './squads-brasil-england';
 import { SQUADS_EUROPE_AND_WORLD_ELITE, SQUADS_ITALY_SERIE_A, SQUADS_SPAIN_LALIGA } from './squads-spain-italy-europe';
+import verifiedLogos from './verified-logos.json';
 import {
   CLUBS_BRASIL_SERIE_A,
   CLUBS_BRASIL_SERIE_B,
@@ -209,7 +210,12 @@ export function buildInitialSimulatorDataset(): SimulatorDataset {
   const timesCompeticao: TimeCompeticao[] = [];
 
   for (const club of ALL_CLUB_SEEDS) {
-    times.push(seedToTime(club));
+    const time = seedToTime(club);
+    const verifiedLogo = (verifiedLogos as Record<string, string>)[club.id];
+    if (verifiedLogo) {
+      time.logo_url = verifiedLogo;
+    }
+    times.push(time);
     tecnicos.push(seedToTecnico(club));
 
     const curated = ALL_CURATED_SQUADS[club.id];
