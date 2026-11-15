@@ -12,6 +12,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { AuthContext } from '@/lib/auth-context';
+import { SimulatorProvider } from '@/lib/simulator-store';
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -84,11 +85,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Base Web" },
-      { name: "description", content: "Base mínima com banco e autenticação." },
+      { title: "Futebol Manager Simulator" },
+      { name: "description", content: "Simulador de futebol estilo Football Manager de texto com dados reais de clubes, elencos e competições." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Base Web" },
-      { property: "og:description", content: "Base mínima com banco e autenticação." },
+      { property: "og:title", content: "Futebol Manager Simulator" },
+      { property: "og:description", content: "Simulador de futebol estilo Football Manager de texto com dados reais de clubes, elencos e competições." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
@@ -147,7 +148,11 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <AuthContext.Provider value={auth}><Outlet /></AuthContext.Provider>
+      <AuthContext.Provider value={auth}>
+        <SimulatorProvider>
+          <Outlet />
+        </SimulatorProvider>
+      </AuthContext.Provider>
     </QueryClientProvider>
   );
 }

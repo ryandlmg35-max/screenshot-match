@@ -1,80 +1,79 @@
-# Base Web
+# Futebol Manager Simulator
 
-Base mínima: React 19, TypeScript, Vite, Tailwind e TanStack Start (estrutura nativa do Lovable, mantida em vez de converter para uma SPA). Banco e autenticação por email/senha no Lovable Cloud. Sem dados simulados, telas elaboradas ou formulário de perfil.
+Simulador de futebol estilo **Football Manager de texto**, construído com React 19, TypeScript, TanStack Start, Tailwind CSS e Supabase. Inclui motor de simulação baseado em **distribuição de Poisson**, overall médio do elenco titular, fator casa e Elo Rating, gerando súmulas completas, artilharia, assistências, tabela de classificação e chaveamento visual de mata-mata.
 
-## Rodar localmente
+---
+
+## Como rodar localmente
 
 ```sh
 bun install
-cp .env.example .env.local
 bun run dev
 ```
 
-Preencha `VITE_SUPABASE_URL` e a chave **pública** em `VITE_SUPABASE_ANON_KEY` e `VITE_SUPABASE_PUBLISHABLE_KEY` (mesmo valor). A integração nativa usa o nome moderno PUBLISHABLE_KEY; `src/lib/supabase.ts` reexporta esse único cliente, sem criar uma segunda sessão. Encontre URL e chave pública na configuração/conexão do Lovable Cloud. Não use service_role no frontend e não versione arquivos com credenciais.
-
-A página `/` testa Auth e a Data API via função do servidor: também configure `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` no ambiente do servidor local, com os valores correspondentes à mesma conexão. No Lovable esses valores são fornecidos automaticamente. Só variáveis VITE são expostas ao navegador.
+### Testes e Build
 
 ```sh
 bun run test
 bun run build
 ```
 
-## Páginas
+### Banco de Dados (Supabase)
 
-- `/`: título, indicador real de conexão e acesso ao login.
-- `/login`: cadastro, login e logout com email/senha. A confirmação por email permanece ativa: cadastro bem-sucedido sem sessão não significa login concluído. A entrega do email depende do serviço de envio.
+O schema completo do simulador (com RLS ativado, leitura pública e escrita restrita a admin/`service_role`) está em:
 
-## Banco
+- Migration SQL: [`supabase/migrations/20261115180000_football_simulator.sql`](supabase/migrations/20261115180000_football_simulator.sql)
+- Seed SQL (8 países, 20 competições, 289 clubes, 4.646 jogadores): [`supabase/seed.sql`](supabase/seed.sql)
+- Gerador de seed: [`scripts/generate-seed-sql.ts`](scripts/generate-seed-sql.ts) (`bun run scripts/generate-seed-sql.ts`)
+- Edge Function de simulação: [`supabase/functions/simulate-match/index.ts`](supabase/functions/simulate-match/index.ts)
 
-Única tabela de aplicação: `public.profiles`.
+> **Modo Local Automático:** Caso o banco remoto ainda não tenha as tabelas do simulador aplicadas, o app inicializa automaticamente em memória usando o mesmo dataset real do seed, permitindo simular rodadas, temporadas, consultar elencos e usar o Painel Admin imediatamente.
 
-| Coluna | Definição |
-| --- | --- |
-| id | UUID, chave primária, gerada por gen_random_uuid() |
-| user_id | UUID único, obrigatório; referencia auth.users(id), ON DELETE CASCADE |
-| email | Texto obrigatório |
-| nome | Texto opcional, não coletado pelas telas mínimas |
-| created_at | Data/hora, now() |
-| updated_at | Data/hora, now(); atualizada automaticamente |
+---
 
-A restrição UNIQUE em user_id cria o índice do relacionamento. `on_auth_user_created` cria profiles automaticamente após o cadastro de uma conta; `profiles_updated_at` atualiza updated_at. O nome permanece vazio conforme a opção de não coletar dados adicionais. Email é o valor no momento do cadastro; alterações posteriores de email em Auth não são sincronizadas automaticamente.
+## Fórmula de Overall Estimado
 
-### Policies e privilégios
+Implementada em [`src/lib/overall-formula.ts`](src/lib/overall-formula.ts):
 
-RLS ativo, somente para authenticated:
+- **Base por reputação (1 a 5):** `1 → 62`, `2 → 68`, `3 → 74`, `4 → 80`, `5 → 86`
+- **Modificador do clube (Elo):** `(clubeElo - 1500) / 70` (limitado entre `-4` e `+6`)
+- **Curva de idade:** pico de `+2` entre 24–29 anos (ou 25–32 para GOL/ZAG), `-2` para sub-20 ou veteranos acima de 33/35
+- **Ajuste posicional:** `+1` para atacantes/meias/pontas de reputação 4 ou 5
+- **Resultado final:** limitado entre `50` e `95`
 
-- `profiles_select_own`: SELECT com auth.uid() = user_id.
-- `profiles_insert_own`: INSERT com a mesma condição em WITH CHECK.
-- `profiles_update_own`: UPDATE com a mesma condição em USING e WITH CHECK, impedindo transferir propriedade.
-- `profiles_delete_own`: DELETE com auth.uid() = user_id.
+---
 
-authenticated recebe SELECT/INSERT/UPDATE/DELETE; service_role recebe ALL somente para ferramentas privilegiadas; anon não recebe acesso à tabela. Não há clientes ou pedidos: eram exemplos no documento.
+## Progresso dos Dados (Clubes, Técnicos, Logos e Elencos)
 
-## Migrations e tipos
+Todas as **20 competições** possuem seus clubes reais, siglas, cidades, estádios, URLs de escudo (Wikimedia Commons com fallback SVG) e técnicos cadastrados. Abaixo está o status detalhado dos **elencos**:
 
-Migrations canônicas aplicadas pela integração estão em `drizzle/migrations`. `supabase/migrations` contém cópias SQL idênticas para recriar a estrutura em outro projeto. **Não aplique os dois conjuntos no mesmo banco**. Uma cópia não é uma segunda migration aplicada.
+### 1ªs Divisões & Clubes Continentais (Elencos Reais Curados)
 
-Para recriar em outro projeto com ferramentas de migration compatíveis, aplique os SQL de `supabase/migrations` em ordem em um banco que tenha Auth configurado. Autenticação por email, confirmação e URLs de redirecionamento são configurações do serviço, não parte do SQL: configure-as separadamente.
+| País / Âmbito | Competição | Clubes | Status do Elenco |
+| :--- | :--- | :---: | :--- |
+| 🇧🇷 Brasil | Brasileirão Série A (2026) | 20 | ✅ Completo (jogadores reais + fórmula de OVR) |
+| 🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra | Premier League (2026/27) | 20 | ✅ Completo (jogadores reais + fórmula de OVR) |
+| 🇪🇸 Espanha | La Liga (2026/27) | 20 | ✅ Completo (jogadores reais + fórmula de OVR) |
+| 🇮🇹 Itália | Serie A (2026/27) | 20 | ✅ Completo (jogadores reais + fórmula de OVR) |
+| 🇩🇪 Alemanha | Bundesliga (2026/27) | 18 | 🟡 Parcial (Bayern, Leverkusen e Dortmund curados; demais com base gerada) |
+| 🇫🇷 França | Ligue 1 (2026/27) | 18 | 🟡 Parcial (PSG curado; demais com base gerada) |
+| 🇵🇹 Portugal | Primeira Liga (2026/27) | 18 | 🟡 Parcial (Sporting, Benfica e Porto curados; demais com base gerada) |
+| 🌎 Continental | Libertadores / Sul-Americana / Mundial | 15 convidados | 🟡 Parcial (River, Boca, Al-Hilal e Inter Miami curados; demais com base gerada) |
 
-`src/types/database.ts` exporta os tipos do schema gerados em `src/integrations/supabase/types.ts`. Regere pela integração após mudar o banco, sem editar o arquivo gerado.
+### 2ªs Divisões & Copas (Base de Clubes Completa, Elencos Reais Pendentes)
 
-## Novo frontend usando o mesmo banco
+| País | Competição | Clubes | Status do Elenco |
+| :--- | :--- | :---: | :--- |
+| 🇧🇷 Brasil | Brasileirão Série B (2026) | 20 | ⏳ Clubes/estádios/logos/técnicos reais; elenco gerado automaticamente (18 jog.) |
+| 🇧🇷 Brasil | Copa do Brasil (2026) | 32 | ✅ Utiliza os elencos dos clubes das Séries A e B |
+| 🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra | EFL Championship (2026/27) | 24 | ⏳ Clubes/estádios/logos/técnicos reais; elenco gerado automaticamente (18 jog.) |
+| 🇪🇸 Espanha | La Liga 2 / Segunda División (2026/27) | 22 | ⏳ Clubes/estádios/logos/técnicos reais; elenco gerado automaticamente (18 jog.) |
+| 🇮🇹 Itália | Serie B (2026/27) | 20 | ⏳ Clubes/estádios/logos/técnicos reais; elenco gerado automaticamente (18 jog.) |
+| 🇩🇪 Alemanha | 2. Bundesliga (2026/27) | 18 | ⏳ Clubes/estádios/logos/técnicos reais; elenco gerado automaticamente (18 jog.) |
+| 🇫🇷 França | Ligue 2 (2026/27) | 18 | ⏳ Clubes/estádios/logos/técnicos reais; elenco gerado automaticamente (18 jog.) |
+| 🇵🇹 Portugal | Liga Portugal 2 (2026/27) | 18 | ⏳ Clubes/estádios/logos/técnicos reais; elenco gerado automaticamente (18 jog.) |
+| 🌍 Europa | UEFA Champions League / Europa League | — | ✅ Utiliza os clubes reais classificados das ligas europeias |
 
-Não recrie tabelas nem usuários. Use a mesma URL e chave pública, instale `@supabase/supabase-js` e importe Database. Neste projeto importe o cliente de `src/lib/supabase.ts`. Em um frontend Vite independente:
+### Atualizações Futuras (Transferências e Novos Elencos)
 
-```ts
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from './types/database';
-const supabase = createClient<Database>(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-);
-```
-
-Leve o arquivo de tipos gerado junto (ou ajuste a reexportação). A chave é pública; a proteção vem das policies. Nunca leve `client.server.ts` nem chaves privilegiadas ao frontend. Cadastre o domínio e URLs locais do novo frontend em More → Users → Auth settings → Advanced para links de confirmação. Use emailRedirectTo igual à origem pública do frontend. Leia somente os próprios registros com `supabase.from('profiles').select('*')`; RLS restringe os resultados.
-
-Dados de aplicação são salvos somente no banco. O cliente de autenticação nativo persiste **a sessão** no armazenamento gerenciado do preview / navegador; isso não é usado como banco de dados. O requisito de não usar localStorage foi interpretado como não salvar dados de aplicação nele, preservando a integração nativa.
-
-## GitHub
-
-O código está preparado para sincronização, mas a conexão e seu status não podem ser confirmados pelo agente. Abra **Configurações do projeto → Git → GitHub** e conecte sua conta: o Lovable cria um novo repositório privado. Depois clone usando a URL exibida ali. Não é possível conectar um repositório já existente pela sincronização nativa. Alterações na branch sincronizada retornam ao Lovable; migrations não são aplicadas automaticamente por um push.
+Use a aba **Painel Admin** diretamente na interface para adicionar jogadores, editar overalls, alterar técnicos ou realizar transferências entre clubes, e clique em **Exportar SQL do Clube** para gerar os comandos incrementais para o Supabase.
