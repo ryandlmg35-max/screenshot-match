@@ -8,14 +8,42 @@ interface StandingsTableProps {
   onSelectTeam: (teamId: string) => void;
 }
 
+const CONMEBOL_COUNTRIES = new Set(['bra', 'arg', 'col', 'uru']);
+const NON_EURO_WORLD_CUP_COUNTRIES = new Set(['usa', 'ksa']);
+const TWO_DIV_COUNTRIES = new Set(['bra', 'eng', 'esp', 'ita', 'ger', 'fra', 'por']);
+
+function getZoneConfig(comp: Competicao): {
+  topCount: number;
+  midCount: number;
+  relegationCount: number;
+  topLabel: string;
+  midLabel: string;
+} {
+  if (comp.pais_id === 'bra') {
+    return { topCount: 5, midCount: 4, relegationCount: 4, topLabel: 'Libertadores (G5)', midLabel: 'Sul-Americana' };
+  }
+  if (comp.pais_id === 'arg') {
+    return { topCount: 4, midCount: 3, relegationCount: 0, topLabel: 'Libertadores (G4)', midLabel: 'Sul-Americana' };
+  }
+  if (comp.pais_id === 'col' || comp.pais_id === 'uru') {
+    return { topCount: 2, midCount: 2, relegationCount: 0, topLabel: 'Libertadores (G2)', midLabel: 'Sul-Americana' };
+  }
+  if (comp.pais_id && NON_EURO_WORLD_CUP_COUNTRIES.has(comp.pais_id)) {
+    return { topCount: 3, midCount: 0, relegationCount: 0, topLabel: 'Mundial de Clubes (G3)', midLabel: '' };
+  }
+  const rel = comp.pais_id === 'ger' || comp.pais_id === 'fra' || comp.pais_id === 'por' ? 2 : 3;
+  return { topCount: 4, midCount: 2, relegationCount: rel, topLabel: 'Champions League (G4)', midLabel: 'Europa League' };
+}
+
 function getZoneClass(comp: Competicao, pos: number, total: number): string {
   if (comp.formato === 'grupos') {
     return pos <= 2 ? 'border-l-4 border-l-emerald-500' : '';
   }
   if (comp.divisao === 1) {
-    if (pos <= 4) return 'border-l-4 border-l-emerald-500';
-    if (pos <= 6) return 'border-l-4 border-l-sky-500';
-    if (pos > total - 4) return 'border-l-4 border-l-rose-500';
+    const cfg = getZoneConfig(comp);
+    if (pos <= cfg.topCount) return 'border-l-4 border-l-emerald-500';
+    if (cfg.midCount > 0 && pos <= cfg.topCount + cfg.midCount) return 'border-l-4 border-l-sky-500';
+    if (cfg.relegationCount > 0 && pos > total - cfg.relegationCount) return 'border-l-4 border-l-rose-500';
   }
   if (comp.divisao === 2) {
     if (pos <= 4) return 'border-l-4 border-l-emerald-500';
@@ -123,22 +151,34 @@ export function StandingsTable({
     <div className="space-y-3">
       {renderTable(standings)}
       <div className="flex flex-wrap gap-4 px-1 text-xs text-muted-foreground">
-        {competicao.divisao === 1 && (
-          <>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-xs bg-emerald-500" />
-              {competicao.pais_id === 'bra' ? 'Libertadores (G4)' : 'Champions League (G4)'}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-xs bg-sky-500" />
-              {competicao.pais_id === 'bra' ? 'Pré-Libertadores / Sula' : 'Europa League'}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-xs bg-rose-500" />
-              Rebaixamento (Z4)
-            </span>
-          </>
-        )}
+        {competicao.divisao === 1 && (() => {
+          const cfg = getZoneConfig(competicao);
+          const hasRel = Boolean(competicao.pais_id && TWO_DIV_COUNTRIES.has(competicao.pais_id)) && cfg.relegationCount > 0;
+          const isSingleDiv = !hasRel && (CONMEBOL_COUNTRIES.has(competicao.pais_id ?? '') || NON_EURO_WORLD_CUP_COUNTRIES.has(competicao.pais_id ?? ''));
+          return (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-xs bg-emerald-500" />
+                {cfg.topLabel}
+              </span>
+              {cfg.midCount > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-xs bg-sky-500" />
+                  {cfg.midLabel}
+                </span>
+              )}
+              {hasRel && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-xs bg-rose-500" />
+                  Rebaixamento (Z{cfg.relegationCount})
+                </span>
+              )}
+              {isSingleDiv && (
+                <span className="text-muted-foreground/70">• Liga de divisão única (sem rebaixamento)</span>
+              )}
+            </>
+          );
+        })()}
         {competicao.divisao === 2 && (
           <>
             <span className="flex items-center gap-1.5">
