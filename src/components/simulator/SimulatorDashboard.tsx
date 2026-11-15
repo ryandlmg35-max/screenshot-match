@@ -2,12 +2,14 @@ import { Link } from '@tanstack/react-router';
 import {
   ArrowRightLeft,
   Award,
+  Briefcase,
   Calendar,
   CalendarCheck2,
   Crown,
   Database,
   FastForward,
   GitBranch,
+  Globe,
   Play,
   RotateCcw,
   Settings,
@@ -26,6 +28,7 @@ import { ChampionCelebrationModal } from './ChampionCelebrationModal';
 import { ClubBadge } from './ClubBadge';
 import { HeadToHeadModal } from './HeadToHeadModal';
 import { KnockoutBracket } from './KnockoutBracket';
+import { ManagerCareerTab } from './ManagerCareerTab';
 import { MatchDetailModal } from './MatchDetailModal';
 import { PlayerDetailModal } from './PlayerDetailModal';
 import { PowerRankingsTab } from './PowerRankingsTab';
@@ -35,8 +38,19 @@ import { StandingsTable } from './StandingsTable';
 import { TeamDetailModal } from './TeamDetailModal';
 import { TopScorersTable } from './TopScorersTable';
 import { TransferMarketTab } from './TransferMarketTab';
+import { WorldCupTab } from './WorldCupTab';
 
-type TabKey = 'classificacao' | 'jogos' | 'chaveamento' | 'artilharia' | 'clubes' | 'mercado' | 'rankings' | 'admin';
+type TabKey =
+  | 'classificacao'
+  | 'jogos'
+  | 'chaveamento'
+  | 'artilharia'
+  | 'clubes'
+  | 'mercado'
+  | 'rankings'
+  | 'copa'
+  | 'carreira'
+  | 'admin';
 
 export function SimulatorDashboard() {
   const {
@@ -443,6 +457,22 @@ export function SimulatorDashboard() {
           </Button>
           <Button
             size="sm"
+            variant={activeTab === 'carreira' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('carreira')}
+          >
+            <Briefcase className="mr-1.5 h-3.5 w-3.5 text-primary" />
+            Carreira
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === 'copa' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('copa')}
+          >
+            <Globe className="mr-1.5 h-3.5 w-3.5 text-emerald-500" />
+            Copa Seleções
+          </Button>
+          <Button
+            size="sm"
             variant={activeTab === 'admin' ? 'default' : 'ghost'}
             onClick={() => setActiveTab('admin')}
           >
@@ -621,6 +651,26 @@ export function SimulatorDashboard() {
             onSelectPlayer={(p) => setSelectedPlayer(p)}
           />
         )}
+
+        {activeTab === 'carreira' && (
+          <ManagerCareerTab
+            selectedCompId={selectedComp.id}
+            onSelectPlayer={(p) => setSelectedPlayer(p)}
+            onSelectTeam={(id) => setSelectedTeamId(id)}
+            onOpenPressConference={(teamId) => {
+              const targetMatch =
+                dataset.partidas.find(
+                  (p) => (p.time_casa_id === teamId || p.time_fora_id === teamId) && p.finalizada,
+                ) ??
+                dataset.partidas.find(
+                  (p) => p.time_casa_id === teamId || p.time_fora_id === teamId,
+                );
+              if (targetMatch) setPressMatchId(targetMatch.id);
+            }}
+          />
+        )}
+
+        {activeTab === 'copa' && <WorldCupTab onSelectPlayer={(p) => setSelectedPlayer(p)} />}
 
         {activeTab === 'admin' && <AdminPanel />}
       </main>

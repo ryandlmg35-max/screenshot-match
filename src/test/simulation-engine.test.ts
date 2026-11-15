@@ -16,6 +16,7 @@ import {
   selectStartingXI,
   simulateMatch,
 } from '@/lib/simulation-engine';
+import { buildWorldCupTournament, simulateWorldCupStep } from '@/lib/world-cup';
 
 describe('Overall formula', () => {
   it('computes realistic overall clamped between 50 and 95', () => {
@@ -353,5 +354,26 @@ describe('FM Depth Systems (Attributes, Lifecycle, Transfers, Promotions)', () =
     expect(nextSeason.timesCompeticao.filter((tc) => tc.competicao_id === 'uefa-ucl')).toHaveLength(24);
     expect(nextSeason.timesCompeticao.filter((tc) => tc.competicao_id === 'conmebol-lib')).toHaveLength(16);
     expect(nextSeason.timesCompeticao.filter((tc) => tc.competicao_id === 'fifa-cwc')).toHaveLength(20);
+  });
+});
+
+describe('World Cup of Nations', () => {
+  it('calls up 16 nations from dataset players and simulates to a champion', () => {
+    const dataset = buildInitialSimulatorDataset();
+    let wc = buildWorldCupTournament(dataset.jogadores);
+
+    expect(wc.teams).toHaveLength(16);
+    expect(Object.keys(wc.groups)).toHaveLength(4);
+    expect(wc.partidas.filter((p) => p.fase.startsWith('Grupo'))).toHaveLength(24);
+    expect(wc.championId).toBeNull();
+
+    for (let i = 0; i < 8 && !wc.championId; i++) {
+      wc = simulateWorldCupStep(wc);
+    }
+
+    expect(wc.championId).toBeTruthy();
+    expect(wc.teams.some((t) => t.id === wc.championId)).toBe(true);
+    const finalMatch = wc.partidas.find((p) => p.fase === 'Final');
+    expect(finalMatch?.finalizada).toBe(true);
   });
 });
