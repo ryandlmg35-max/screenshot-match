@@ -279,17 +279,21 @@ export function executeManualTransfer(
 export function runTransferWindow(
   dataset: SimulatorDataset,
   rng: () => number = Math.random,
+  maxTransfers = 40,
 ): { dataset: SimulatorDataset; transfers: Transferencia[] } {
   let current = dataset;
   const newTransfers: Transferencia[] = [];
 
+  // Ordena por orçamento mas inclui clubes de todas as faixas (ricos compram, médios/pequenos buscam pechinchas ou passe livre)
   const clubsByBudget = [...current.times].sort((a, b) => b.orcamento - a.orcamento);
-  const candidateClubs = clubsByBudget.slice(0, 45);
+  const topClubs = clubsByBudget.slice(0, 45);
+  const restClubs = clubsByBudget.slice(45).sort(() => rng() - 0.5).slice(0, 45);
+  const candidateClubs = [...topClubs, ...restClubs];
   const positions: Posicao[] = ['GOL', 'ZAG', 'LAT', 'VOL', 'MEI', 'PON', 'ATA'];
 
   for (const club of candidateClubs) {
-    if (newTransfers.length >= 24) break;
-    if (rng() > 0.55) continue;
+    if (newTransfers.length >= maxTransfers) break;
+    if (rng() > 0.5) continue;
 
     const clubPlayers = current.jogadores.filter((j) => j.time_id === club.id);
     if (clubPlayers.length >= 26) continue;

@@ -324,13 +324,19 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
         });
 
         const afterLifecycle = applyPostMatchUpdates(prev, results);
-        return recomputeCompetitionDerived(
+        const nextState = recomputeCompetitionDerived(
           afterLifecycle,
           competicaoId,
           temporadaId,
           nextPartidas,
           afterLifecycle.times,
         );
+        const comp = prev.competicoes.find((c) => c.id === competicaoId);
+        const maxRound = Math.max(...compMatches.map((m) => m.rodada), 0);
+        if (comp?.tipo === 'liga' && maxRound >= 10 && rodada === Math.ceil(maxRound / 2)) {
+          return runTransferWindow(nextState, Math.random, 20).dataset;
+        }
+        return nextState;
       });
     },
     [recomputeCompetitionDerived],
@@ -383,6 +389,11 @@ export function SimulatorProvider({ children }: { children: React.ReactNode }) {
             nextPartidas,
             afterLifecycle.times,
           );
+          const comp = current.competicoes.find((c) => c.id === competicaoId);
+          const maxRound = Math.max(...compMatches.map((m) => m.rodada), 0);
+          if (comp?.tipo === 'liga' && maxRound >= 10 && nextRound === Math.ceil(maxRound / 2)) {
+            current = runTransferWindow(current, Math.random, 20).dataset;
+          }
         }
         return current;
       });

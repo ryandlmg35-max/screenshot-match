@@ -75,7 +75,7 @@ export function TransferMarketTab({ onSelectPlayer }: TransferMarketTabProps) {
               Mercado de Transferências ({dataset.anoAtual})
             </h2>
             <p className="text-xs text-slate-400">
-              Contrate jogadores respeitando o orçamento do clube ou assine atletas em fim de contrato sem custo.
+              Os clubes negociam automaticamente no meio e na virada de temporada conforme o orçamento, ou você pode contratar e simular janelas extras abaixo.
             </p>
           </div>
           <button
