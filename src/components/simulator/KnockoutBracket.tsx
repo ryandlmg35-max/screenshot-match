@@ -123,13 +123,14 @@ export function KnockoutBracket({ partidas, timesMap, onSelectMatch }: KnockoutB
                   const teamA = timesMap.get(tie.teamAId);
                   const teamB = timesMap.get(tie.teamBId);
                   if (!teamA || !teamB) return null;
-                  const allDone = tie.legs.every((l) => l.finalizada);
-                  const lastLeg = tie.legs[tie.legs.length - 1]!;
+                  const anyDone = tie.legs.some((l) => l.finalizada);
+                  const nextPendingLeg = tie.legs.find((l) => !l.finalizada);
+                  const targetLeg = nextPendingLeg ?? tie.legs[tie.legs.length - 1]!;
 
                   return (
                     <div
                       key={tie.key}
-                      onClick={() => onSelectMatch(lastLeg)}
+                      onClick={() => onSelectMatch(targetLeg)}
                       className="cursor-pointer rounded-lg border bg-card p-2.5 shadow-xs transition-colors hover:border-primary/50 hover:bg-muted/30"
                     >
                       <div className="space-y-1.5">
@@ -143,7 +144,7 @@ export function KnockoutBracket({ partidas, timesMap, onSelectMatch }: KnockoutB
                             <span className="truncate">{teamA.nome}</span>
                           </div>
                           <span className="font-mono font-semibold">
-                            {allDone || tie.legs[0]?.finalizada ? tie.goalsA : '-'}
+                            {anyDone ? tie.goalsA : '-'}
                           </span>
                         </div>
                         <div
@@ -156,16 +157,35 @@ export function KnockoutBracket({ partidas, timesMap, onSelectMatch }: KnockoutB
                             <span className="truncate">{teamB.nome}</span>
                           </div>
                           <span className="font-mono font-semibold">
-                            {allDone || tie.legs[0]?.finalizada ? tie.goalsB : '-'}
+                            {anyDone ? tie.goalsB : '-'}
                           </span>
                         </div>
                       </div>
-                      <div className="mt-1.5 flex items-center justify-between border-t pt-1 text-[10px] text-muted-foreground">
-                        <span>
-                          {tie.legs.length > 1
-                            ? `Ida/Volta (${tie.legs.map((l) => (l.finalizada ? `${l.gols_casa}x${l.gols_fora}` : '—')).join(' | ')})`
-                            : 'Jogo único'}
-                        </span>
+                      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 border-t pt-1 text-[10px] text-muted-foreground">
+                        {tie.legs.length > 1 ? (
+                          <div className="flex items-center gap-1">
+                            {tie.legs.map((leg, i) => (
+                              <button
+                                key={leg.id}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectMatch(leg);
+                                }}
+                                className={`rounded px-1.5 py-0.5 font-medium transition-colors ${
+                                  leg.finalizada
+                                    ? 'bg-muted text-foreground hover:bg-muted/80'
+                                    : 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 dark:text-emerald-400'
+                                }`}
+                              >
+                                {i === 0 ? 'Ida' : 'Volta'}:{' '}
+                                {leg.finalizada ? `${leg.gols_casa}x${leg.gols_fora}` : 'Simular'}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <span>Jogo único</span>
+                        )}
                         {tie.penaltiesText && (
                           <span className="font-semibold text-amber-600 dark:text-amber-400">
                             {tie.penaltiesText}
