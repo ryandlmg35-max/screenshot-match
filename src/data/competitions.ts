@@ -2,12 +2,17 @@ import type { Competicao, Pais, Temporada } from '@/types/simulator';
 
 export const PAISES: Pais[] = [
   { id: 'bra', nome: 'Brasil', continente: 'América do Sul', codigo_iso: 'BR' },
+  { id: 'arg', nome: 'Argentina', continente: 'América do Sul', codigo_iso: 'AR' },
+  { id: 'col', nome: 'Colômbia', continente: 'América do Sul', codigo_iso: 'CO' },
+  { id: 'uru', nome: 'Uruguai', continente: 'América do Sul', codigo_iso: 'UY' },
   { id: 'eng', nome: 'Inglaterra', continente: 'Europa', codigo_iso: 'GB-ENG' },
   { id: 'esp', nome: 'Espanha', continente: 'Europa', codigo_iso: 'ES' },
   { id: 'ita', nome: 'Itália', continente: 'Europa', codigo_iso: 'IT' },
   { id: 'ger', nome: 'Alemanha', continente: 'Europa', codigo_iso: 'DE' },
   { id: 'fra', nome: 'França', continente: 'Europa', codigo_iso: 'FR' },
   { id: 'por', nome: 'Portugal', continente: 'Europa', codigo_iso: 'PT' },
+  { id: 'usa', nome: 'Estados Unidos', continente: 'América do Norte', codigo_iso: 'US' },
+  { id: 'ksa', nome: 'Arábia Saudita', continente: 'Ásia', codigo_iso: 'SA' },
   { id: 'intl', nome: 'Internacional', continente: 'Global', codigo_iso: 'UN' },
 ];
 
@@ -41,6 +46,13 @@ export const COMPETICOES: Competicao[] = [
   { id: 'por-primeira', nome: 'Primeira Liga', pais_id: 'por', tipo: 'liga', divisao: 1, formato: 'pontos-corridos' },
   { id: 'por-segunda', nome: 'Liga Portugal 2', pais_id: 'por', tipo: 'liga', divisao: 2, formato: 'pontos-corridos' },
 
+  // Ligas Secundárias (1 divisão — base para Libertadores e Mundial)
+  { id: 'arg-liga', nome: 'Liga Profesional Argentina', pais_id: 'arg', tipo: 'liga', divisao: 1, formato: 'pontos-corridos' },
+  { id: 'col-primera', nome: 'Categoría Primera A', pais_id: 'col', tipo: 'liga', divisao: 1, formato: 'pontos-corridos' },
+  { id: 'uru-primera', nome: 'Campeonato Uruguayo', pais_id: 'uru', tipo: 'liga', divisao: 1, formato: 'pontos-corridos' },
+  { id: 'usa-mls', nome: 'Major League Soccer (MLS)', pais_id: 'usa', tipo: 'liga', divisao: 1, formato: 'pontos-corridos' },
+  { id: 'ksa-spl', nome: 'Saudi Pro League', pais_id: 'ksa', tipo: 'liga', divisao: 1, formato: 'pontos-corridos' },
+
   // Continentais / Internacionais
   { id: 'conmebol-lib', nome: 'Copa Libertadores', pais_id: 'intl', tipo: 'continental', divisao: null, formato: 'grupos' },
   { id: 'conmebol-sula', nome: 'Copa Sul-Americana', pais_id: 'intl', tipo: 'continental', divisao: null, formato: 'grupos' },
@@ -50,7 +62,15 @@ export const COMPETICOES: Competicao[] = [
 ];
 
 export const TEMPORADAS: Temporada[] = COMPETICOES.map((c) => {
-  const isCalendarYear = c.pais_id === 'bra' || c.id === 'conmebol-lib' || c.id === 'conmebol-sula' || c.id === 'fifa-cwc';
+  const isCalendarYear =
+    c.pais_id === 'bra' ||
+    c.pais_id === 'arg' ||
+    c.pais_id === 'col' ||
+    c.pais_id === 'uru' ||
+    c.pais_id === 'usa' ||
+    c.id === 'conmebol-lib' ||
+    c.id === 'conmebol-sula' ||
+    c.id === 'fifa-cwc';
   return {
     id: `${c.id}-2026`,
     competicao_id: c.id,

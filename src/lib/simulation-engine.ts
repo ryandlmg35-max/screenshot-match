@@ -573,6 +573,9 @@ export function simulateMatch({
 
 function getCompetitionStartDate(competicaoId: string): Date {
   if (competicaoId.startsWith('bra-')) return new Date('2026-04-12T16:00:00Z');
+  if (competicaoId.startsWith('arg-') || competicaoId.startsWith('col-') || competicaoId.startsWith('uru-') || competicaoId.startsWith('usa-')) {
+    return new Date('2026-02-22T20:00:00Z');
+  }
   if (competicaoId.startsWith('conmebol-')) return new Date('2026-02-18T21:30:00Z');
   if (competicaoId === 'fifa-cwc') return new Date('2026-06-15T18:00:00Z');
   if (competicaoId.startsWith('uefa-')) return new Date('2026-09-15T19:45:00Z');

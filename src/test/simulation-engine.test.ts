@@ -42,10 +42,10 @@ describe('Overall formula', () => {
 describe('Simulation engine', () => {
   const dataset = buildInitialSimulatorDataset();
 
-  it('includes all 20 requested competitions and 280+ clubs', () => {
-    expect(dataset.competicoes).toHaveLength(20);
-    expect(dataset.times.length).toBeGreaterThanOrEqual(270);
-    expect(dataset.jogadores.length).toBeGreaterThanOrEqual(4000);
+  it('includes all 25 competitions (20 core + 5 secondary leagues) and 330+ clubs', () => {
+    expect(dataset.competicoes).toHaveLength(25);
+    expect(dataset.times.length).toBeGreaterThanOrEqual(330);
+    expect(dataset.jogadores.length).toBeGreaterThanOrEqual(5000);
   });
 
   it('generates double round-robin schedule for 20 teams (38 rounds, 380 matches)', () => {
@@ -350,5 +350,8 @@ describe('FM Depth Systems (Attributes, Lifecycle, Transfers, Promotions)', () =
     const nextSeason = advanceSeasonAndPromotions(windowRes.dataset, () => 0.5);
     expect(nextSeason.anoAtual).toBe(dataset.anoAtual + 1);
     expect(nextSeason.partidas.some((p) => !p.finalizada)).toBe(true);
+    expect(nextSeason.timesCompeticao.filter((tc) => tc.competicao_id === 'uefa-ucl')).toHaveLength(24);
+    expect(nextSeason.timesCompeticao.filter((tc) => tc.competicao_id === 'conmebol-lib')).toHaveLength(16);
+    expect(nextSeason.timesCompeticao.filter((tc) => tc.competicao_id === 'fifa-cwc')).toHaveLength(20);
   });
 });

@@ -29,12 +29,12 @@ const RELEGATION_SPOTS: Record<string, number> = {
 
 const LEAGUE_PAIRS: Array<{ country: string; div1: string; div2: string }> = [
   { country: 'bra', div1: 'bra-serie-a', div2: 'bra-serie-b' },
-  { country: 'eng', div1: 'eng-premier-league', div2: 'eng-championship' },
-  { country: 'esp', div1: 'esp-la-liga', div2: 'esp-la-liga-2' },
+  { country: 'eng', div1: 'eng-pl', div2: 'eng-champ' },
+  { country: 'esp', div1: 'esp-laliga', div2: 'esp-laliga2' },
   { country: 'ita', div1: 'ita-serie-a', div2: 'ita-serie-b' },
-  { country: 'ger', div1: 'ger-bundesliga', div2: 'ger-2-bundesliga' },
-  { country: 'fra', div1: 'fra-ligue-1', div2: 'fra-ligue-2' },
-  { country: 'por', div1: 'por-primeira-liga', div2: 'por-liga-2' },
+  { country: 'ger', div1: 'ger-bundesliga', div2: 'ger-bundesliga2' },
+  { country: 'fra', div1: 'fra-ligue1', div2: 'fra-ligue2' },
+  { country: 'por', div1: 'por-primeira', div2: 'por-segunda' },
 ];
 
 function clamp(v: number, min: number, max: number): number {
@@ -509,30 +509,75 @@ export function advanceSeasonAndPromotions(
     }
   }
 
-  // 3. Classificação continental baseada nas ligas domésticas
-  const braTable = leagueStandings.get('bra-serie-a') ?? [];
-  if (braTable.length >= 12) {
-    const currentLib = linksByComp.get('conmebol-lib') ?? [];
-    const nonBraLib = currentLib.filter((id) => teamsMap.get(id)?.pais_id !== 'bra');
-    const braLib = braTable.slice(0, 6).map((r) => r.time_id);
-    linksByComp.set('conmebol-lib', Array.from(new Set([...braLib, ...nonBraLib])).slice(0, 16));
-
-    const currentSula = linksByComp.get('conmebol-sula') ?? [];
-    const nonBraSula = currentSula.filter((id) => teamsMap.get(id)?.pais_id !== 'bra');
-    const braSula = braTable.slice(6, 12).map((r) => r.time_id);
-    linksByComp.set('conmebol-sula', Array.from(new Set([...braSula, ...nonBraSula])).slice(0, 16));
+  // Ligas de divisão única também alimentam as competições continentais/mundial
+  for (const singleLeague of ['arg-liga', 'col-primera', 'uru-primera', 'usa-mls', 'ksa-spl']) {
+    leagueStandings.set(singleLeague, sortStandings(standingsByComp.get(singleLeague) ?? []));
   }
 
+  // 3. Classificação continental e mundial baseada nas ligas domésticas
+  const braTable = leagueStandings.get('bra-serie-a') ?? [];
+  const argTable = leagueStandings.get('arg-liga') ?? [];
+  const colTable = leagueStandings.get('col-primera') ?? [];
+  const uruTable = leagueStandings.get('uru-primera') ?? [];
+  const usaTable = leagueStandings.get('usa-mls') ?? [];
+  const ksaTable = leagueStandings.get('ksa-spl') ?? [];
+
+  if (braTable.length >= 9 && argTable.length >= 7 && colTable.length >= 4 && uruTable.length >= 4) {
+    const libClubs = Array.from(
+      new Set([
+        ...braTable.slice(0, 5).map((r) => r.time_id),
+        ...argTable.slice(0, 4).map((r) => r.time_id),
+        ...colTable.slice(0, 2).map((r) => r.time_id),
+        ...uruTable.slice(0, 2).map((r) => r.time_id),
+        'ecu-idv',
+        'ecu-ldu',
+        'chi-colocolo',
+      ]),
+    ).slice(0, 16);
+    linksByComp.set('conmebol-lib', libClubs);
+
+    const sulaClubs = Array.from(
+      new Set([
+        ...braTable.slice(5, 9).map((r) => r.time_id),
+        ...argTable.slice(4, 7).map((r) => r.time_id),
+        ...colTable.slice(2, 4).map((r) => r.time_id),
+        ...uruTable.slice(2, 4).map((r) => r.time_id),
+        'par-olimpia',
+      ]),
+    ).slice(0, 12);
+    linksByComp.set('conmebol-sula', sulaClubs);
+  }
+
+  const euroLeagues = ['eng-pl', 'esp-laliga', 'ita-serie-a', 'ger-bundesliga', 'fra-ligue1', 'por-primeira'];
   const uclQualified: string[] = [];
   const uelQualified: string[] = [];
-  for (const euroDiv of ['eng-premier-league', 'esp-la-liga', 'ita-serie-a', 'ger-bundesliga', 'fra-ligue-1', 'por-primeira-liga']) {
+  const euroChampions: string[] = [];
+  for (const euroDiv of euroLeagues) {
     const tbl = leagueStandings.get(euroDiv) ?? [];
-    const uclSpots = euroDiv === 'fra-ligue-1' || euroDiv === 'por-primeira-liga' ? 2 : 4;
-    uclQualified.push(...tbl.slice(0, uclSpots).map((r) => r.time_id));
-    uelQualified.push(...tbl.slice(uclSpots, uclSpots + 2).map((r) => r.time_id));
+    if (tbl[0]) euroChampions.push(tbl[0].time_id);
+    uclQualified.push(...tbl.slice(0, 4).map((r) => r.time_id));
+    uelQualified.push(...tbl.slice(4, 6).map((r) => r.time_id));
   }
-  if (uclQualified.length >= 16) linksByComp.set('uefa-ucl', Array.from(new Set(uclQualified)).slice(0, 16));
-  if (uelQualified.length >= 12) linksByComp.set('uefa-uel', Array.from(new Set(uelQualified)).slice(0, 16));
+  if (uclQualified.length >= 16) linksByComp.set('uefa-ucl', Array.from(new Set(uclQualified)).slice(0, 24));
+  if (uelQualified.length >= 12) linksByComp.set('uefa-uel', Array.from(new Set(uelQualified)).slice(0, 12));
+
+  // Copa do Mundo de Clubes (20 clubes: 6 Europa, 6 CONMEBOL, 3 MLS, 3 Saudi, 2 Resto do Mundo)
+  if (euroChampions.length >= 6 && braTable.length >= 2 && argTable.length >= 2) {
+    const cwcClubs = Array.from(
+      new Set([
+        ...euroChampions.slice(0, 6),
+        ...braTable.slice(0, 2).map((r) => r.time_id),
+        ...argTable.slice(0, 2).map((r) => r.time_id),
+        ...(colTable[0] ? [colTable[0].time_id] : []),
+        ...(uruTable[0] ? [uruTable[0].time_id] : []),
+        ...usaTable.slice(0, 3).map((r) => r.time_id),
+        ...ksaTable.slice(0, 3).map((r) => r.time_id),
+        'egy-alahly',
+        'ecu-idv',
+      ]),
+    ).slice(0, 20);
+    if (cwcClubs.length >= 16) linksByComp.set('fifa-cwc', cwcClubs);
+  }
 
   // 4. Atualiza temporadas e reconstrói timesCompeticao, partidas e classificacao
   const temporadas = dataset.temporadas.map((t) => ({
@@ -566,8 +611,8 @@ export function advanceSeasonAndPromotions(
       const sorted = [...clubIds].sort(
         (a, b) => (teamsMap.get(b)?.elo_rating ?? 1500) - (teamsMap.get(a)?.elo_rating ?? 1500),
       );
-      const groupLetters = ['A', 'B', 'C', 'D'];
-      const numGroups = Math.min(4, Math.max(2, Math.floor(sorted.length / 4)));
+      const groupLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const numGroups = Math.max(2, Math.floor(sorted.length / 4));
       const groups: Record<string, string[]> = {};
       for (let g = 0; g < numGroups; g++) groups[groupLetters[g]!] = [];
 

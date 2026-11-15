@@ -48,6 +48,7 @@ import {
   CLUBS_ITALY_SERIE_B,
   CLUBS_PORTUGAL,
 } from './teams-italy-germany-france-portugal';
+import { ALL_SECONDARY_CLUBS } from './teams-secondary-leagues';
 
 export const ALL_CLUB_SEEDS: ClubSeed[] = [
   ...CLUBS_BRASIL_SERIE_A,
@@ -62,6 +63,7 @@ export const ALL_CLUB_SEEDS: ClubSeed[] = [
   ...CLUBS_GERMANY,
   ...CLUBS_FRANCE,
   ...CLUBS_PORTUGAL,
+  ...ALL_SECONDARY_CLUBS,
 ];
 
 const ALL_CURATED_SQUADS: Record<string, import('./squads-brasil-england').PlayerTuple[]> = {
@@ -107,6 +109,31 @@ const NAMES_BY_COUNTRY: Record<string, { first: string[]; last: string[]; nat: s
     nat: 'Portugal',
     first: ['João', 'Diogo', 'Tiago', 'Pedro', 'Rafael', 'André', 'Gonçalo', 'Bruno', 'Miguel', 'Duarte', 'Francisco', 'Tomás', 'Vasco', 'Nuno', 'Rúben', 'Ricardo', 'Filipe', 'Henrique'],
     last: ['Silva', 'Santos', 'Ferreira', 'Pereira', 'Oliveira', 'Costa', 'Rodrigues', 'Martins', 'Jesus', 'Sousa', 'Fernandes', 'Gonçalves', 'Gomes', 'Lopes', 'Marques', 'Alves', 'Almeida', 'Ribeiro'],
+  },
+  arg: {
+    nat: 'Argentina',
+    first: ['Mateo', 'Santiago', 'Nicolás', 'Agustín', 'Tomás', 'Facundo', 'Lautaro', 'Franco', 'Joaquín', 'Valentín', 'Ignacio', 'Gonzalo'],
+    last: ['González', 'Rodríguez', 'Gómez', 'Fernández', 'López', 'Díaz', 'Martínez', 'Pérez', 'Romero', 'Sánchez', 'Acosta', 'Medina'],
+  },
+  col: {
+    nat: 'Colômbia',
+    first: ['Juan', 'Andrés', 'Sebastián', 'Camilo', 'Santiago', 'Daniel', 'Luis', 'Carlos', 'Kevin', 'Jhon', 'Yerson', 'Brayan'],
+    last: ['Gómez', 'Rodríguez', 'Martínez', 'Moreno', 'Vargas', 'Rojas', 'Mosquera', 'Quintero', 'Castro', 'Mendoza', 'Castaño', 'Arias'],
+  },
+  uru: {
+    nat: 'Uruguai',
+    first: ['Facundo', 'Federico', 'Rodrigo', 'Ignacio', 'Matías', 'Santiago', 'Agustín', 'Nicolás', 'Lucas', 'Maximiliano', 'Diego', 'Emiliano'],
+    last: ['Rodríguez', 'Silva', 'Pereira', 'Bentancur', 'Olivera', 'Suárez', 'Núñez', 'Cabrera', 'Méndez', 'Sosa', 'Giménez', 'Varela'],
+  },
+  usa: {
+    nat: 'Estados Unidos',
+    first: ['Tyler', 'Christian', 'Brandon', 'Jordan', 'Cole', 'Caleb', 'Aidan', 'Miles', 'Walker', 'Griffin', 'Jack', 'Noah'],
+    last: ['Adams', 'Morris', 'Robinson', 'Zimmerman', 'Acosta', 'Roldan', 'Ferreira', 'Turner', 'McKennie', 'Wright', 'Clark', 'Miller'],
+  },
+  ksa: {
+    nat: 'Arábia Saudita',
+    first: ['Salem', 'Salman', 'Firas', 'Hassan', 'Mohammed', 'Abdullah', 'Saud', 'Nasser', 'Sultan', 'Ali', 'Yasser', 'Nawaf'],
+    last: ['Al-Dawsari', 'Al-Faraj', 'Al-Buraikan', 'Al-Tambakti', 'Al-Owais', 'Al-Shahrani', 'Al-Ghanam', 'Kanno', 'Al-Shehri', 'Al-Qahtani', 'Al-Muwallad', 'Al-Harbi'],
   },
   intl: {
     nat: 'Argentina',
